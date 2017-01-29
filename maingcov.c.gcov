@@ -1,0 +1,332 @@
+// WILHELM Daniel YAMAN Kendal
+        -:    0:Source:maingcov.c
+        -:    0:Programs:2
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:#include <unistd.h>
+        -:    4:#include <sys/stat.h>
+        -:    5:#include <fcntl.h>
+        -:    6:#include <string.h>
+        -:    7:#include "kv.h"
+        -:    8:#include <errno.h>
+        -:    9:#include <time.h>
+        -:   10:typedef struct KV
+        -:   11:{
+        -:   12:	int descr_h;
+        -:   13:	int descr_blk;
+        -:   14:	int descr_kv;
+        -:   15:	int descr_dkv;
+        -:   16:    alloc_t methode_alloc;
+        -:   17:    unsigned char * dkv;
+        -:   18:    len_t remplissement_dkv;
+        -:   19:    len_t longueur_dkv;
+        -:   20:    const char * mode;
+        -:   21:    int couple_nr_kv_next;
+        -:   22:    int (*f_hachage)(const kv_datum* kdatum);
+        -:   23:    unsigned char *bloc;
+        -:   24:    int key_long;
+        -:   25:    int * tabbloc;
+        -:   26:    int longueur_buf_bloc;
+        -:   27:    int nb_blocs;
+        -:   28:}KV ;
+        -:   29:
+        -:   30:
+        -:   31:// Main qui couvre le plus de code possible pour gcov
+        -:   32:
+        -:   33:
+        -:   34:#define TAILLE 10000
+        -:   35:
+        -:   36:
+        -:   37:void affiche_base(KV * kv);
+        -:   38:int del (int i, int j, KV*kv,kv_datum **tableau);
+        -:   39:void remplit_base(int n,KV *kv,kv_datum **tableau);
+        -:   40:kv_datum ** creation_tableau (int n); 
+        -:   41:kv_datum * transformation(int i);
+        -:   42:int puissance_dix(int i);
+        -:   43:
+        -:   44:
+        -:   45:
+        -:   46:
+    38894:   47:int puissance_dix(int i)
+        -:   48:{
+    38894:   49:	int s=1,j;
+    38894:   50:	for(j=0;j<i;j++) s*=10;
+    38894:   51:	return s;
+        -:   52:}
+        -:   53:
+        -:   54://transforme i en tab de char *
+    10001:   55:kv_datum * transformation(int i)
+        -:   56:{
+    10001:   57:	int j=0,k;
+    10001:   58:	int n=i;
+    10001:   59:	kv_datum *kv=malloc(sizeof( kv_datum));
+        -:   60:	char * tab;
+    58896:   61:	while(n>0)
+        -:   62:	{
+    38894:   63:		n=n/10;
+    38894:   64:		j++;
+        -:   65:	}
+    10001:   66:	if(i==0) 
+        -:   67:	{
+        1:   68:		tab=malloc(2);
+        1:   69:		tab[0]='0';
+        1:   70:		tab[1]='\0';
+        1:   71:		kv->ptr=tab;
+        1:   72:		kv->len=2;
+        1:   73:		return kv;
+        -:   74:	}
+    10000:   75:	tab=malloc(j+1);
+    48894:   76:	for(k=0;k<j;k++)
+        -:   77:	{
+    38894:   78:		tab[k]=i/puissance_dix(j-k-1)%10+'0';
+        -:   79:	}
+    10000:   80:	tab[j]='\0';
+    10000:   81:	kv->ptr=tab;
+    10000:   82:	kv->len=j+1;
+    10000:   83:	return kv;
+        -:   84:}
+        -:   85:
+        -:   86:// créé un tableau de kv_datum de taille i+1, de nombre sous forme string de 0 à i
+        1:   87:kv_datum ** creation_tableau (int n) 
+        -:   88:{
+        -:   89:	int i;
+        -:   90:	kv_datum * kv;
+        1:   91:	kv_datum ** tableau=malloc(sizeof( kv_datum *)*(n+1));
+    10002:   92:	for(i=0;i<=n;i++)
+        -:   93:	{
+    10001:   94:		kv=transformation(i);
+    10001:   95:		tableau[i]=kv;
+        -:   96:	}
+        1:   97:	return tableau;
+        -:   98:
+        -:   99:}
+        -:  100:
+        -:  101:// créé un tableau de mots de longueur max lenght_max
+    10001:  102:kv_datum * mot(int lenght_max){
+        -:  103:
+    10001:  104:	kv_datum *kv=malloc(sizeof( kv_datum));
+        -:  105:	char *tab; 
+        -:  106:	char lettre;
+        -:  107:	char lettrestring[2];
+    10001:  108:	int lenght = rand()%(lenght_max+1);
+    10001:  109:	lettrestring[1]='\0';
+        -:  110:	int i;
+    10001:  111:	tab= malloc(lenght+1);
+    10001:  112:	strcpy(tab, "");
+   263513:  113:	for (i = 0; i < lenght; ++i)
+        -:  114:	{
+   253512:  115:		lettre='a'+(rand()%27);
+   253512:  116:		lettrestring[0]=lettre;
+   253512:  117:		strcat(tab, lettrestring);
+        -:  118:	}
+    10001:  119:	kv->ptr=tab;
+    10001:  120:	kv->len=lenght+1;
+        -:  121:
+    10001:  122:	return kv;
+        -:  123:
+        -:  124:}
+        -:  125:
+        1:  126:kv_datum ** creation_tableau_mot(int n,int taillemot) 
+        -:  127:{
+        -:  128:	int i;
+        -:  129:	kv_datum * kv;
+        1:  130:	kv_datum ** tableau=malloc(sizeof( kv_datum *)*(n+1));
+    10002:  131:	for(i=0;i<=n;i++)
+        -:  132:	{
+    10001:  133:		kv=mot(taillemot);
+    10001:  134:		tableau[i]=kv;
+        -:  135:	}
+        1:  136:	return tableau;
+        -:  137:
+        -:  138:}
+        -:  139:
+        -:  140:// remplit la base avec des clefs allant de 0 à i-1 et des valeurs allant de 1 à i
+        6:  141:void remplit_base(int n,KV *kv,kv_datum **tableau)
+        -:  142:{
+        -:  143:	int i;
+    14126:  144:	for(i=0;i<n;i++)
+        -:  145:	{
+    14120:  146:		kv_put(kv,tableau[i],tableau[i+1]);
+        -:  147:	}
+        6:  148:	return ;	
+        -:  149:}
+        -:  150:
+        -:  151:
+        -:  152:
+        -:  153://fonction qui supprime tous les clefs de valeur entre i et j
+        -:  154:// la base est déjà ouverte
+        -:  155:// retourne -1 si un des del n'a pas fonctionné sinon retourne 
+        3:  156:int del (int i, int j, KV*kv,kv_datum **tableau)
+        -:  157:{
+        3:  158:	int test=0;
+        -:  159:	int k;
+     1523:  160:	for(k=i;k<j;k++)
+        -:  161:	{
+     1520:  162:		if(kv_del(kv,tableau[k])==-1)
+    #####:  163:			test=-1;
+        -:  164:	}
+        -:  165:	
+        3:  166:	return test;	
+        -:  167:}
+        -:  168:
+        -:  169:// affiche toute la base 
+        -:  170:// la base est ouverte
+        1:  171:void affiche_base(KV * kv)
+        -:  172:{
+        -:  173:	kv_datum key;
+        -:  174:	kv_datum val;
+        -:  175://	printf("------------------------------\n     CONTENU DE LA BASE :     \n------------------------------\n");
+        1:  176:	kv_start(kv);
+        1:  177:	key.ptr=NULL;
+        1:  178:	val.ptr=NULL;
+     5013:  179:	while(kv_next(kv,&key,&val)==1)
+        -:  180:	{
+        -:  181://		printf("CLEF :longueur %d, valeur %s\n", key.len,verifc);
+        -:  182://		printf("VAL : longueur %d, valeur %s\n", val.len,verifv);
+        -:  183://		printf("--\n");
+     5011:  184:		free(key.ptr);
+     5011:  185:		free(val.ptr);
+     5011:  186:		key.ptr=NULL;
+     5011:  187:		val.ptr=NULL;
+        -:  188:	}	
+        -:  189://	printf("------------------------------\n       FIN DE LA BASE        \n------------------------------\n");
+        1:  190:}
+        -:  191:
+        1:  192:int main()
+        -:  193:{
+        -:  194:	int i;
+        1:  195:	kv_datum **tableau = creation_tableau(TAILLE);
+        1:  196:	kv_datum **tableau_mot = creation_tableau_mot(TAILLE,50);
+        -:  197:	kv_datum *key;
+        -:  198:	kv_datum *val;
+        -:  199:	KV*kv;
+        1:  200:	kv=kv_open("database","r+",0,FIRST_FIT);
+        1:  201:	if(kv==NULL)
+        -:  202:	{
+    #####:  203:		printf("erreur open\n");
+    #####:  204:		exit(1);
+        -:  205:	}
+        -:  206:	// remplit le tableau avec la méthode first fit
+        1:  207:	remplit_base(5000,kv,tableau);
+        1:  208:	if(kv_close(kv)==-1)
+    #####:  209:		printf("erreur close\n");	
+        -:  210:	
+        1:  211:	kv=kv_open("database","r+",0,BEST_FIT);
+        1:  212:	if(kv==NULL)
+        -:  213:	{
+    #####:  214:		printf("erreur open\n");
+    #####:  215:		exit(1);
+        -:  216:	}
+        -:  217:	// remplit le tableau avec la méthode best fit
+        1:  218:	remplit_base(5000,kv,tableau_mot);
+        -:  219:
+        1:  220:	if(kv_close(kv)==-1)
+    #####:  221:		printf("erreur close\n");	
+        -:  222:	
+        1:  223:	kv=kv_open("database","r+",0,WORST_FIT);
+        1:  224:	if(kv==NULL)
+        -:  225:	{
+    #####:  226:		printf("erreur open\n");
+    #####:  227:		exit(1);
+        -:  228:	}
+        -:  229:	// remplit le tableau avec la méthode worst fit
+        1:  230:	remplit_base(100,kv,tableau);
+        -:  231:	
+        -:  232:	// supprime des valeurs
+      751:  233:	for(i=0;i<750;i++)
+        -:  234:	{
+      750:  235:		kv_del(kv,tableau_mot[i*2]);
+      750:  236:		kv_del(kv,tableau_mot[i*3]);
+        -:  237:	}
+        1:  238:	if(kv_close(kv)==-1)
+    #####:  239:		printf("erreur close\n");	
+        -:  240:
+        -:  241:
+        -:  242:	// lit une valeur
+        1:  243:	kv=kv_open("database","r",0,FIRST_FIT);
+        1:  244:	if(kv==NULL)
+        -:  245:	{
+    #####:  246:		printf("erreur open\n");
+    #####:  247:		exit(1);
+        -:  248:	}
+        1:  249:	key=tableau[1];
+        1:  250:	val=malloc(sizeof(kv_datum));
+        1:  251:	val->ptr=NULL;
+        1:  252:	kv_get(kv,key,val);
+        1:  253:	val->ptr=NULL;
+        1:  254:	key=tableau[11];
+        1:  255:	kv_get(kv,key,val);
+        -:  256:	// get d'une clef avec val limité -> val->ptr n'est pas réinistialisé
+        1:  257:	kv_get(kv,key,val);
+        1:  258:	free(val->ptr);
+        -:  259:
+        -:  260:	// get d'une clef inexistante
+        1:  261:	key=malloc(sizeof(kv_datum));
+        1:  262:	char* tmp="nimportequoi";
+        1:  263:	key->ptr=tmp;
+        1:  264:	key->len=13;
+        1:  265:	val->ptr=NULL;
+        1:  266:	kv_get(kv,key,val);
+        -:  267:	
+        -:  268:	// affiche la base (modifiée pour ne rien afficher) -> exécute kv_start et kv_next
+        1:  269:	affiche_base(kv);
+        1:  270:	free(val);
+        1:  271:	free(key);
+        1:  272: 	if(kv_close(kv)==-1)
+    #####:  273:		printf("erreur close\n");	
+        -:  274:
+        -:  275:	//créé une nouvelle base avec comme index de hachage 1 qui renvoie vers une 
+        -:  276:	// fonction qui retourne toujours 0 afin de tester les mécanismes bloc 
+        -:  277:	// fils/père 
+        1:  278:	kv=kv_open("database2","w",1,FIRST_FIT);
+        1:  279:	if(kv==NULL)
+        -:  280:	{
+    #####:  281:		printf("erreur open\n");
+    #####:  282:		exit(1);
+        -:  283:	}
+        -:  284:	// remplit la base avec assez de valeur pour changer de bloc
+        1:  285:	remplit_base(4000,kv,tableau);
+        -:  286:	// get d'une clef inexistante
+        1:  287:	kv_get(kv,tableau[1500],tableau[4]);
+        -:  288:	
+        -:  289:	// supprime 1500 emplacements
+        1:  290:	del(0,1500,kv,tableau);
+        1:  291:	if(kv_close(kv)==-1)
+    #####:  292:		printf("erreur close\n");	
+        -:  293:
+        1:  294:	kv=kv_open("database3","r+",2,FIRST_FIT);
+        1:  295:	if(kv==NULL)
+        -:  296:	{
+    #####:  297:		printf("erreur open\n");
+    #####:  298:		exit(1);
+        -:  299:	}
+        -:  300:	// remplit le tableau avec la méthode first fit
+        1:  301:	remplit_base(10,kv,tableau);
+        1:  302:	del(0,10,kv,tableau);
+        1:  303:	if(kv_close(kv)==-1)
+    #####:  304:		printf("erreur close\n");	
+        1:  305:	kv=kv_open("database4","r+",3,FIRST_FIT);
+        1:  306:	if(kv==NULL)
+        -:  307:	{
+    #####:  308:		printf("erreur open\n");
+    #####:  309:		exit(1);
+        -:  310:	}
+        -:  311:	// remplit le tableau avec la méthode first fit
+        1:  312:	remplit_base(10,kv,tableau);
+        1:  313:	del(0,10,kv,tableau);
+        1:  314:	if(kv_close(kv)==-1)
+    #####:  315:		printf("erreur close\n");	
+        -:  316:
+        -:  317:	
+    10002:  318:	for(i=0;i<=TAILLE;i++)
+        -:  319:	{
+    10001:  320:		free(tableau[i]->ptr);
+    10001:  321:		free(tableau[i]);
+    10001:  322:		free(tableau_mot[i]->ptr);
+    10001:  323:		free(tableau_mot[i]);
+        -:  324:	
+        -:  325:	}
+        1:  326:	free(tableau);
+        1:  327:	free(tableau_mot);
+        1:  328:	return 0;
+        -:  329:}
