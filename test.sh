@@ -3,7 +3,7 @@
 # Lance les fonctions de tests avec les différentes fonctions de hachage
 
 echo "Premier test"
-gcc -Wall -Wextra -Werror -o main mainmotrandom.c kv.c
+gcc -Wall -Wextra -Werror -o main mainmotrandom.c kv.c slotAllocations.c
 # test les temps des différents méthodes de hache
 # pour entrer 50 000 clefs + valeurs de taille comprise entre 0 et 10
 # ainsi que pour en supprimer de nouveau 25 000 clefs
@@ -26,7 +26,7 @@ rm data*
 rm fichier
 
 echo "Second test"
-gcc -Wall -Wextra -Werror -o main mainzero.c kv.c
+gcc -Wall -Wextra -Werror -o main mainzero.c kv.c slotAllocations.c
 # test les temps des différents méthodes de hache
 # pour entrer 4 000 clefs + valeurs de taille comprise entre 0 et 10
 # ainsi que pour en supprimer de nouveau 5 000 clefs
@@ -50,7 +50,7 @@ rm fichier
 
 
 echo "Troisieme test"
-gcc -Wall -Wextra -Werror -o main mainrandom.c kv.c
+gcc -Wall -Wextra -Werror -o main mainrandom.c kv.c slotAllocations.c
 # test les temps des différents méthodes de hache
 # pour entrer 10 000 clefs constituées de nombre entre 0 et 5000 random
 # puis pour entrer 10 000 mots de longueur max 10 random
@@ -74,7 +74,7 @@ rm data*
 rm fichier
 
 echo "Quatrieme test"
-gcc -Wall -Wextra -Werror -o main mainint.c kv.c
+gcc -Wall -Wextra -Werror -o main mainint.c kv.c slotAllocations.c
 # test les temps des différents méthodes de hache
 # pour entrer 10 000 clefs constituées de nombre entre 0 et 5000
 # et pour en supprimer de nouveau 5000
