@@ -102,6 +102,7 @@ int main(int argc, char* argv[]) {
     int i;
     int hidx = 0;
     int taillemot;
+
     if (argc < 6) {
         printf("usage %s : <nom de base> <taille> <taille_max_mot> <methode d'allocation> <mode> <hidx>\n", argv[0]);
         exit(1);
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]) {
 
     //	printf("supprime les %d premiers éléments\n",taille/2);
     del(0, taille / 2, kv, tableau);
-    //	affiche_base(kv);
+    affiche_base(kv);
     if (kv_close(kv) == -1)
         printf("erreur\n");
     for (i = 0; i <= taille; i++) {

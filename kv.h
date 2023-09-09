@@ -63,6 +63,12 @@ void creationNewVoisin(KV* kv, int octets_restants, int empl_dkv, len_t t_couple
 void decaledkv_avant(KV* kv, int emplacement_a_decal);
 int truncate_kv(KV* kv);
 
+// Return offsets
+len_t getOffsetBlk(unsigned int index);
+len_t getOffsetH(unsigned int hash);
+len_t getOffsetBloc(unsigned int index);
+len_t getOffsetDkv(unsigned int index);
+
 /*
  * Définition de l'API de la bibliothèque kv
  */
