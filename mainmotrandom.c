@@ -124,10 +124,11 @@ int main(int argc, char* argv[]) {
 
     //	printf("remplit la base\n");
     remplit_base(taille - 1, kv, tableau);
+    affiche_base(kv);
 
     //	printf("supprime les %d premiers éléments\n",taille/2);
     del(0, taille / 2, kv, tableau);
-    affiche_base(kv);
+    //    affiche_base(kv);
     if (kv_close(kv) == -1)
         printf("erreur\n");
     for (i = 0; i <= taille; i++) {
