@@ -2,6 +2,7 @@
 #define KV_H
 
 #include "hashFunctions.h"
+#include "kvInitialization.h"
 #include "slotAllocations.h"
 #include "structures.h"
 

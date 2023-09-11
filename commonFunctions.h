@@ -1,5 +1,7 @@
-#ifndef STRUCTURES_H
-#define STRUCTURES_H
+#ifndef COMMON_FUNCTIONS_H
+#define COMMON_FUNCTIONS_H
+
+typedef struct s_KV KV;
 
 #include "structures.h"
 
@@ -10,5 +12,6 @@ int write_controle(int descripteur, const void* ptr, int nboctets);
 
 int readAtPosition(int fd, unsigned int position, void* dest, unsigned int nbBytes, KV* database);
 int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbBytes, KV* database);
+int closeFileDescriptors(KV* database);
 
 #endif

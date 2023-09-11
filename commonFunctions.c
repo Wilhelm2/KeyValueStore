@@ -1,4 +1,4 @@
-#include "communFunctions.h"
+#include "commonFunctions.h"
 
 // Concat two strings
 char* concat(const char* S1, const char* S2) {
@@ -64,6 +64,20 @@ int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbByt
         return -1;
     }
     return 1;
+}
+
+// Close either returns 0 when succeeds or -1 when fails. Thus the function will return -1 if one of the closes fail
+int closeFileDescriptors(KV* database) {
+    int res = 0;
+    if (database->descr_blk > 0)
+        res |= close(database->descr_blk);
+    if (database->descr_dkv > 0)
+        res |= close(database->descr_dkv);
+    if (database->descr_h > 0)
+        res |= close(database->descr_h);
+    if (database->descr_kv > 0)
+        res |= close(database->descr_kv);
+    return res;
 }
 
 len_t getOffsetBlk(unsigned int index) {

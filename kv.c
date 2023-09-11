@@ -8,7 +8,7 @@ w+ : O_CREAT|O_RDWR
 */
 // retourne NULL si n'arrive pas à ouvrir la base de donnée
 KV* kv_open(const char* dbname, const char* mode, int hidx, alloc_t alloc) {
-    KV* kv = malloc(sizeof(struct KV));
+    KV* kv = malloc(sizeof(struct s_KV));
     int test_existance;
     len_t nb_emplacements_dkv;
     unsigned char* buf_dkv;
@@ -76,20 +76,6 @@ KV* kv_open(const char* dbname, const char* mode, int hidx, alloc_t alloc) {
     kv->f_hachage = f_hachage;
     kv->bloc = NULL;
     return kv;
-}
-
-// Close either returns 0 when succeeds or -1 when fails. Thus the function will return -1 if one of the closes fail
-int closeFileDescriptors(KV* database) {
-    int res = 0;
-    if (database->descr_blk > 0)
-        res |= close(database->descr_blk);
-    if (database->descr_dkv > 0)
-        res |= close(database->descr_dkv);
-    if (database->descr_h > 0)
-        res |= close(database->descr_h);
-    if (database->descr_kv > 0)
-        res |= close(database->descr_kv);
-    return res;
 }
 
 // ferme la base de donnée, retourne -1 si échoue, sinon retourne 0

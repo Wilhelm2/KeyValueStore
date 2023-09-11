@@ -31,20 +31,13 @@ typedef struct kv_datum kv_datum;
 
 typedef enum { FIRST_FIT, WORST_FIT, BEST_FIT } alloc_t;
 
-/*
- * Définition de type incomplète : la struct KV est définie avec
- * l'implémentation des fonctions kv_*(), mais ça n'empêche pas
- * les programmes utilisateurs de ces fonctions de "transporter"
- * des pointeurs sur ces structures.
- */
-
 #define LG_EN_TETE_H 5     // MagicN + index_f_hache
 #define LG_EN_TETE_BLK 5   // MagicN + nb_bloc
 #define LG_EN_TETE_KV 1    // MagicN
 #define LG_EN_TETE_DKV 5   // MagicN + nb_blocs
 #define LG_EN_TETE_BLOC 9  // bloc suivant(char)+nr bloc suivant(int) + nb emplacements (int)
 
-typedef struct KV {
+struct s_KV {
     int descr_h;
     int descr_blk;
     int descr_kv;
@@ -61,6 +54,7 @@ typedef struct KV {
     int* tabbloc;
     unsigned int longueur_buf_bloc;
     int nb_blocs;
-} KV;
+};
+typedef struct s_KV KV;
 
 #endif
