@@ -112,6 +112,7 @@ int main(int argc, char* argv[]) {
     fillsDatabase(nbElementsToInsert, kv, entryArray);
     printDatabase(kv);
 
+    printf("Now deletes elements from database\n");
     deleleteKeysInterval(0, nbElementsToInsert / 2, kv, entryArray);
     //    affiche_base(kv);
     if (kv_close(kv) == -1)

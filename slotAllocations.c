@@ -13,11 +13,11 @@ int (*choix_allocation(KV* database))(KV* database, const kv_datum* key, const k
 // first fit : Looks for the first slot which is big enough to hold key+val
 // Returns -1 when there is no available slot
 int first_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
-    unsigned int nbSlots = *(int*)kv->dkv;
+    unsigned int nbSlots = getSlotsInDKV(kv);
     int requiredSpace = sizeof(key->len) + key->len + sizeof(val->len) + val->len;
     int sizeOfCurrSlot;
     for (unsigned int i = 0; i < nbSlots; i++) {
-        sizeOfCurrSlot = *(int*)(kv->dkv + 4 + i * 8);
+        sizeOfCurrSlot = getSlotSizeDkv(kv, i);
         if (sizeOfCurrSlot > 0)  // empty slot
         {
             if (requiredSpace <= sizeOfCurrSlot)
@@ -30,14 +30,14 @@ int first_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
 // worst fit : Returns the biggest available slot
 // Returns -1 when there is no available slot
 int worst_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
-    unsigned int nbSlots = *(int*)kv->dkv;
+    unsigned int nbSlots = getSlotsInDKV(kv);
     int requiredSpace = sizeof(key->len) + key->len + sizeof(val->len) + val->len;
     int sizeOfCurrSlot;
     int biggestSlotIndex = -1;
     int biggestSlotSize = -1;
     // recherche le bloc le plus grand
     for (unsigned int i = 0; i < nbSlots; i++) {
-        sizeOfCurrSlot = *(int*)(kv->dkv + 4 + i * 8);
+        sizeOfCurrSlot = getSlotSizeDkv(kv, i);
         if (sizeOfCurrSlot > 0)  // emplacement vide
         {
             if (requiredSpace <= sizeOfCurrSlot && sizeOfCurrSlot > biggestSlotSize) {
@@ -53,14 +53,14 @@ int worst_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
 // best fit : Returns the smallest slot among those big enough to store key + val
 // Returns -1 when there is no available slot
 int best_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
-    unsigned int nbSlots = *(int*)kv->dkv;
+    unsigned int nbSlots = getSlotsInDKV(kv);
     int requiredSpace = sizeof(key->len) + key->len + sizeof(val->len) + val->len;
     int sizeOfCurrSlot;
     int bestSlotIndex = -1;
     int bestSlotSize = -1;
 
     for (unsigned int i = 0; i < nbSlots; i++) {
-        sizeOfCurrSlot = *(int*)(kv->dkv + 4 + i * 8);  // access_lg_dkv(i, kv);
+        sizeOfCurrSlot = getSlotSizeDkv(kv, i);
         if (requiredSpace <= sizeOfCurrSlot && sizeOfCurrSlot < bestSlotSize) {
             if (sizeOfCurrSlot == requiredSpace)
                 return i;

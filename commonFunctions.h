@@ -31,12 +31,24 @@ static inline len_t getOffsetDkv(unsigned int index) {
     return LG_EN_TETE_DKV + index * 2 * sizeof(unsigned int);
 }
 
+static inline int getLengthDkv(KV* kv, unsigned int index) {
+    return *((int*)(kv->dkv + getOffsetDkv(index)));
+}
+
+static inline int getSlotSizeDkv(KV* kv, unsigned int index) {
+    return *((int*)(kv->dkv + getOffsetDkv(index)));  // keeps as int since < 0 means that the slot is not free
+}
+
 static inline len_t getOffsetKV(unsigned int index) {
     return LG_EN_TETE_KV + index;
 }
 
 static inline unsigned int getSlotsInDKV(KV* kv) {
     return *(int*)(kv->dkv + 1);
+}
+
+static inline void setSlotsInDKV(KV* kv, unsigned int nbSlots) {
+    memcpy(kv->dkv + 1, &nbSlots, sizeof(unsigned int));
 }
 
 static inline unsigned int getNbElementsInBlock(unsigned char* bloc) {

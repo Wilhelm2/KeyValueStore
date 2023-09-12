@@ -1,11 +1,11 @@
-CFLAGS= -Wall -Wextra -Werror
+CFLAGS= -Wall -Wextra -Werror -g
 CC= gcc
 FILES= hashFunctions.c kvInitialization.c commonFunctions.c kv.c slotAllocations.c 
 
 random:
 	$(CC) $(CFLAGS) -c $(FILES)
 	$(CC) $(CFLAGS) -c mainmotrandom.c
-	gcc -o main $(FILES) mainmotrandom.o	
+	gcc -o main $(CFLAGS) $(FILES) mainmotrandom.o	
 
 zero:
 	$(CC) $(CFLAGS) -c $(FILES)

@@ -15,7 +15,7 @@
 typedef uint32_t len_t;
 
 /*
- * Représente une donnée : soit une clef, soit une valeur
+ * Représente une donnée : soit une key, soit une valeur
  */
 
 struct kv_datum {
@@ -48,7 +48,7 @@ struct s_KV {
     unsigned char* dkv;        // Holds dkv
     unsigned int maxElementsInDKV;
     const char* mode;
-    unsigned int couple_nr_kv_next;
+    unsigned int nextTuple;
     int (*hashFunction)(const kv_datum* kdatum);
     unsigned char bloc[BLOCK_SIZE];
     bool* blocIsOccupied;  // array containing whether blocs are occupied or not. blocIsOccupied[i]=true means that bloc
