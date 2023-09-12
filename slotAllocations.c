@@ -1,11 +1,11 @@
 #include "slotAllocations.h"
 
 int (*choix_allocation(KV* database))(KV* database, const kv_datum* key, const kv_datum* val) {
-    if (database->methode_alloc == FIRST_FIT)
+    if (database->allocationMethod == FIRST_FIT)
         return first_fit;
-    if (database->methode_alloc == BEST_FIT)
+    if (database->allocationMethod == BEST_FIT)
         return best_fit;
-    if (database->methode_alloc == WORST_FIT)
+    if (database->allocationMethod == WORST_FIT)
         return worst_fit;
     return first_fit;
 }

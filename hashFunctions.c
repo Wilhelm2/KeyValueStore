@@ -1,54 +1,50 @@
 #include "hashFunctions.h"
 
 // Return a pointer to the hash function chosen with index
-int (*choix_hachage(int index))(const kv_datum* clef) {
+int (*selectHashFunction(unsigned int index))(const kv_datum* key) {
     if (index == 1)
-        return hachage_test;
+        return testHash;
     if (index == 0)
-        return hachage_defaut;
+        return defaultHash;
     if (index == 2)
-        return djb_hash;
+        return djbHash;
     if (index == 3)
-        return fnv_hash;
+        return fnvHash;
     else
         return NULL;
 }
 
 // Default hash function
-int hachage_defaut(const kv_datum* clef) {
-    unsigned char* ptrclef = clef->ptr;
-    unsigned int i, s = 0;
-    for (i = 0; i < clef->len; i++) {
-        s += ptrclef[i] % 999983;
+int defaultHash(const kv_datum* key) {
+    unsigned char* ptrkey = key->ptr;
+    unsigned int s = 0;
+    for (unsigned int i = 0; i < key->len; i++) {
+        s += ptrkey[i] % 999983;
     }
     return (s);
 }
 
 // Test hash function to check whether the allocation of a new block works
-int hachage_test(const kv_datum* clef) {
-    return clef->len % 1;
+int testHash(const kv_datum* key) {
+    return key->len % 1;
 }
 
 // Bernstein hash
-int djb_hash(const kv_datum* clef) {
-    unsigned int hash = 5381, i;
-    unsigned char* ptrclef = (unsigned char*)clef->ptr;
-
-    for (i = 0; i < clef->len; i++) {
-        hash = 33 * hash ^ ptrclef[i];
+int djbHash(const kv_datum* key) {
+    unsigned int hash = 5381;
+    unsigned char* ptrkey = (unsigned char*)key->ptr;
+    for (unsigned int i = 0; i < key->len; i++) {
+        hash = 33 * hash ^ ptrkey[i];
     }
     return hash % 999983;
 }
 
 // FNV_hash
-int fnv_hash(const kv_datum* clef) {
-    unsigned char* ptrclef = clef->ptr;
+int fnvHash(const kv_datum* key) {
+    unsigned char* ptrkey = key->ptr;
     unsigned h = 2166136261;
-    unsigned int i;
-
-    for (i = 0; i < clef->len; i++) {
-        h = (h * 16777619) ^ ptrclef[i];
+    for (unsigned int i = 0; i < key->len; i++) {
+        h = (h * 16777619) ^ ptrkey[i];
     }
-
     return h % 999983;
 }

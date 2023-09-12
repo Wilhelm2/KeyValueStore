@@ -31,29 +31,30 @@ typedef struct kv_datum kv_datum;
 
 typedef enum { FIRST_FIT, WORST_FIT, BEST_FIT } alloc_t;
 
-#define LG_EN_TETE_H 5     // MagicN + index_f_hache
-#define LG_EN_TETE_BLK 5   // MagicN + nb_bloc
+#define LG_EN_TETE_H 5     // MagicN + hashFunctionIndex
+#define LG_EN_TETE_BLK 5   // MagicN + nb_blocs
 #define LG_EN_TETE_KV 1    // MagicN
 #define LG_EN_TETE_DKV 5   // MagicN + nb_blocs
-#define LG_EN_TETE_BLOC 9  // bloc suivant(char)+nr bloc suivant(int) + nb emplacements (int)
+#define LG_EN_TETE_BLOC 9  // indexNextBlocWithSameHash(char) + indexNextBloc(int) + numberOfSlots(int)
+
+#define BLOCK_SIZE 4096
 
 struct s_KV {
-    int descr_h;
-    int descr_blk;
-    int descr_kv;
-    int descr_dkv;
-    alloc_t methode_alloc;
-    unsigned char* dkv;
-    len_t remplissement_dkv;
-    len_t longueur_dkv;
+    int fd_h;                  // File descriptor of h file
+    int fd_blk;                // File descriptor of blk file
+    int fd_kv;                 // File descriptor of kv file
+    int fd_dkv;                // File descriptor of dkv file
+    alloc_t allocationMethod;  // FIRST_FIT, WORST_FIT or BEST_FIT
+    unsigned char* dkv;        // Holds dkv
+    unsigned int maxElementsInDKV;
     const char* mode;
-    int couple_nr_kv_next;
-    int (*f_hachage)(const kv_datum* kdatum);
-    unsigned char* bloc;
-    int key_long;
-    int* tabbloc;
-    unsigned int longueur_buf_bloc;
-    int nb_blocs;
+    unsigned int couple_nr_kv_next;
+    int (*hashFunction)(const kv_datum* kdatum);
+    unsigned char bloc[BLOCK_SIZE];
+    bool* blocIsOccupied;  // array containing whether blocs are occupied or not. blocIsOccupied[i]=true means that bloc
+                           // i is occupied
+    unsigned int blocIsOccupiedSize;
+    unsigned int nb_blocs;
 };
 typedef struct s_KV KV;
 

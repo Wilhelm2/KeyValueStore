@@ -11,8 +11,10 @@
 
 typedef struct s_KV KV;
 
-int initializeFileDescriptors(KV* database, const char* mode, const char* dbname);
+int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned int hashFunctionIndex);
+int openFiles(KV* database, const char* mode, const char* dbname);
 int getOpenMode(const char* mode);
-int verificationMagicN(int descr, const char* mode, unsigned char magicNumber, int databaseExists);
+int writeMagicNumbers(KV* database);
+int verifyFileMagicNumber(int descr, unsigned char magicNumber, KV* database);
 int tryOpen(KV* database, const char* filename, int flags, unsigned int mode);
 #endif

@@ -69,43 +69,13 @@ int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbByt
 // Close either returns 0 when succeeds or -1 when fails. Thus the function will return -1 if one of the closes fail
 int closeFileDescriptors(KV* database) {
     int res = 0;
-    if (database->descr_blk > 0)
-        res |= close(database->descr_blk);
-    if (database->descr_dkv > 0)
-        res |= close(database->descr_dkv);
-    if (database->descr_h > 0)
-        res |= close(database->descr_h);
-    if (database->descr_kv > 0)
-        res |= close(database->descr_kv);
+    if (database->fd_blk > 0)
+        res |= close(database->fd_blk);
+    if (database->fd_dkv > 0)
+        res |= close(database->fd_dkv);
+    if (database->fd_h > 0)
+        res |= close(database->fd_h);
+    if (database->fd_kv > 0)
+        res |= close(database->fd_kv);
     return res;
-}
-
-len_t getOffsetBlk(unsigned int index) {
-    return (index - 1) * 4096 + LG_EN_TETE_BLK;
-}
-
-len_t getOffsetH(unsigned int hash) {
-    return LG_EN_TETE_H + hash * sizeof(unsigned int);
-}
-
-len_t getOffsetBloc(unsigned int index) {
-    return LG_EN_TETE_BLOC + index * sizeof(unsigned int);
-}
-
-len_t getOffsetDkv(unsigned int index) {
-    return LG_EN_TETE_DKV - 1 +
-           index * 2 * sizeof(unsigned int);  // bug parce que je ne lis pas le 1er bit donc faudra mettre ça a jour une
-                                              // fois que getoffset est généralisé!
-}
-
-len_t getOffsetKV(unsigned int index) {
-    return LG_EN_TETE_KV + index;
-}
-
-int getSlotsInDKV(KV* kv) {
-    return *(int*)kv->dkv;
-}
-
-unsigned int getNbElementsInBlock(unsigned char* bloc) {
-    return *(int*)(bloc + 5);
 }

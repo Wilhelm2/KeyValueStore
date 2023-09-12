@@ -9,27 +9,26 @@ def getTime():
         seconds = float(userTime[1][:-1].replace(",",".")) + float(sysTime[1][:-1].replace(",","."))
         return str(minutes) + "minutes " +  str(seconds) +" seconds "
         
-    
+def doTest(hashFunction, nbAdds):
+    subprocess.check_call(["bash","-c","(time ./main database "+str(nbAdds) + " 10 FIRST_FIT \"r+\" " + str(hashFunction) + ") 2> results"])
+    print "Hashing " + str(hashFunction) + " " + getTime()
+    subprocess.check_call(["bash","-c","rm data*"])	
+    subprocess.check_call(["bash","-c","rm results"])	
 	
 
-print "Premier test"
-
 # Tests the different hash methods 
-# Adds 50000 keys to the database whose size is between 0 and 10, then deletes 25000 of them 
+# Inserts 50000 keys to the database whose size is between 0 and 10, then deletes 25000 of them 
+# print "First test"
 subprocess.check_call(["bash","-c","make random"])	
-subprocess.check_call(["bash","-c","(time ./main database 40000 10 FIRST_FIT \"r+\" 0) 2> results"])
-print "Default hashing " + getTime()
-subprocess.check_call(["bash","-c","rm data*"])	
+doTest(0,4000)
+# doTest(2,40000)
+# doTest(3,40000)
 
-
-subprocess.check_call(["bash","-c","make random"])	
-subprocess.check_call(["bash","-c","(time ./main database 40000 10 FIRST_FIT \"r+\" 2) 2> results"])
-print "Second hashing " + getTime()
-subprocess.check_call(["bash","-c","rm data*"])	
-
-subprocess.check_call(["bash","-c","make random"])	
-subprocess.check_call(["bash","-c","(time ./main database 40000 10 FIRST_FIT \"r+\" 3) 2> results"])
-print "Third hashing " + getTime()
-subprocess.check_call(["bash","-c","rm data*"])	
-subprocess.check_call(["bash","-c","rm results"])	
+# Test the different hash methods 
+# Inserts 4000 keys whose size is between 0 and 10, then deletes 2000 of them 
+print "Second test"
+subprocess.check_call(["bash","-c","make zero"])	
+# doTest(0,4000)
+# doTest(2,4000)
+# doTest(3,4000)
 
