@@ -35,7 +35,7 @@ typedef enum { FIRST_FIT, WORST_FIT, BEST_FIT } alloc_t;
 #define LG_EN_TETE_BLK 5   // MagicN + nb_blocs
 #define LG_EN_TETE_KV 1    // MagicN
 #define LG_EN_TETE_DKV 5   // MagicN + nb_blocs
-#define LG_EN_TETE_BLOC 9  // indexNextBlocWithSameHash(char) + indexNextBloc(int) + numberOfSlots(int)
+#define LG_EN_TETE_BLOC 9  // hasNextBlock(bool) + indexNextBlockWithSameHash(int) + numberOfSlots(int)
 
 #define BLOCK_SIZE 4096
 

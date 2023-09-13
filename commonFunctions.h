@@ -55,6 +55,18 @@ static inline unsigned int getNbElementsInBlock(unsigned char* bloc) {
     return *(int*)(bloc + 5);
 }
 
+static inline void setNbElementsInBlock(unsigned char* block, unsigned int nbElements) {
+    memcpy(block + 5, &nbElements, sizeof(unsigned int));
+}
+
+static inline unsigned int getIndexNextBloc(unsigned char* block) {
+    return *(int*)(block + 1);
+}
+
+static inline unsigned char hasNextBloc(unsigned char* block) {
+    return *(block);
+}
+
 static inline unsigned int sizeOfDKVFilled(KV* kv) {
     return getSlotsInDKV(kv) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV;
 }
