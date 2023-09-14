@@ -23,8 +23,8 @@ static inline len_t getOffsetH(unsigned int hash) {
     return LG_EN_TETE_H + hash * sizeof(unsigned int);
 }
 
-static inline len_t getOffsetBloc(unsigned int index) {
-    return LG_EN_TETE_BLOC + index * sizeof(unsigned int);
+static inline len_t getOffsetBlock(unsigned int index) {
+    return LG_EN_TETE_BLOCK + index * sizeof(unsigned int);
 }
 
 static inline len_t getOffsetDkv(unsigned int index) {
@@ -39,6 +39,18 @@ static inline int getSlotSizeDkv(KV* kv, unsigned int index) {
     return *((int*)(kv->dkv + getOffsetDkv(index)));  // keeps as int since < 0 means that the slot is not free
 }
 
+static inline int getSlotOffsetDkv(KV* kv, unsigned int index) {
+    return *((int*)(kv->dkv + getOffsetDkv(index) + sizeof(unsigned int)));
+}
+
+static inline void setSlotSizeDkv(KV* kv, unsigned int index, unsigned int size) {
+    memcpy(kv->dkv + getOffsetDkv(index), &size, sizeof(unsigned int));
+}
+
+static inline void setSlotOffsetDkv(KV* kv, unsigned int index, unsigned int size) {
+    memcpy(kv->dkv + getOffsetDkv(index) + sizeof(unsigned int), &size, sizeof(unsigned int));
+}
+
 static inline len_t getOffsetKV(unsigned int index) {
     return LG_EN_TETE_KV + index;
 }
@@ -51,19 +63,19 @@ static inline void setSlotsInDKV(KV* kv, unsigned int nbSlots) {
     memcpy(kv->dkv + 1, &nbSlots, sizeof(unsigned int));
 }
 
-static inline unsigned int getNbElementsInBlock(unsigned char* bloc) {
-    return *(int*)(bloc + 5);
+static inline unsigned int getNbElementsInBlock(unsigned char* block) {
+    return *(int*)(block + 5);
 }
 
 static inline void setNbElementsInBlock(unsigned char* block, unsigned int nbElements) {
     memcpy(block + 5, &nbElements, sizeof(unsigned int));
 }
 
-static inline unsigned int getIndexNextBloc(unsigned char* block) {
+static inline unsigned int getIndexNextBlock(unsigned char* block) {
     return *(int*)(block + 1);
 }
 
-static inline unsigned char hasNextBloc(unsigned char* block) {
+static inline unsigned char hasNextBlock(unsigned char* block) {
     return *(block);
 }
 

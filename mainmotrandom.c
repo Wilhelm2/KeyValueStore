@@ -10,38 +10,40 @@
 #include <unistd.h>
 #include "kv.h"
 
-int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum** tableau);
-kv_datum** createEntryArray(unsigned int n, int maximumWordSize);
-kv_datum* makeEntry(unsigned int lenght_max);
-void fillsDatabase(unsigned int n, KV* kv, kv_datum** tableau);
+int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau);
+kv_datum* createEntryArray(unsigned int n, int maximumWordSize);
+kv_datum makeEntry(unsigned int lenght_max);
+void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau);
 void printDatabase(KV* kv);
-void freeEntryArray(kv_datum** array, unsigned int size);
+void freeEntryArray(kv_datum* array, unsigned int size);
 
-kv_datum** createEntryArray(unsigned int n, int maximumWordSize) {
-    kv_datum** tableau = malloc(sizeof(kv_datum*) * (n + 1));
-    for (unsigned int i = 0; i <= n; i++)
+kv_datum* createEntryArray(unsigned int n, int maximumWordSize) {
+    kv_datum* tableau = calloc(n, sizeof(kv_datum));
+    for (unsigned int i = 0; i < n; i++)
         tableau[i] = makeEntry(maximumWordSize);
     return tableau;
 }
 
-kv_datum* makeEntry(unsigned int length_max) {
-    kv_datum* kv = malloc(sizeof(kv_datum));
-    kv->len = rand() % (length_max + 1);
-    kv->ptr = malloc(length_max + 1);
+kv_datum makeEntry(unsigned int length_max) {
+    kv_datum kv;
+    kv.len = rand() % (length_max + 1);
+    kv.ptr = malloc(length_max + 1);
     char letter;
     for (unsigned int i = 0; i < length_max; i++) {
         letter = 'a' + (rand() % 27);
-        memcpy(((char*)kv->ptr) + i, &letter, 1);
+        memcpy(((char*)kv.ptr) + i, &letter, 1);
     }
     letter = '\0';
-    memcpy(((char*)kv->ptr) + length_max, &letter, 1);
+    memcpy(((char*)kv.ptr) + length_max, &letter, 1);
     return kv;
 }
 
 // Inserts elements in table with key going from 0 to i-1 and values going from 1 to i
-void fillsDatabase(unsigned int n, KV* kv, kv_datum** tableau) {
-    for (unsigned int i = 0; i < n; i++)
-        kv_put(kv, tableau[i], tableau[(i + 1) % n]);
+void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau) {
+    for (unsigned int i = 0; i < n; i++) {
+        //        printf("inserts element %d\n", i);
+        kv_put(kv, &tableau[i], &tableau[(i + 1) % n]);
+    }
 }
 
 // Prints the database. Assumes the database is already open.
@@ -68,19 +70,18 @@ void printDatabase(KV* kv) {
 
 // Deletes all keys with a value between i and j
 // Returns -1 if one of the deletes failed
-int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum** tableau) {
+int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau) {
     int test = 0;
     for (unsigned int k = i; k < j; k++) {
-        if (kv_del(kv, tableau[k]) == -1)
+        if (kv_del(kv, &tableau[k]) == -1)
             test = -1;
     }
     return test;
 }
 
-void freeEntryArray(kv_datum** array, unsigned int size) {
+void freeEntryArray(kv_datum* array, unsigned int size) {
     for (unsigned int i = 0; i < size; i++) {
-        free(array[i]->ptr);
-        free(array[i]);
+        free(array[i].ptr);
     }
     free(array);
 }
@@ -100,7 +101,7 @@ int main(int argc, char* argv[]) {
         hidx = atoi(argv[6]);
 
     // Builds the array to fill the database
-    kv_datum** entryArray = createEntryArray(nbElementsToInsert, maximumWordSize);
+    kv_datum* entryArray = createEntryArray(nbElementsToInsert, maximumWordSize);
 
     // Opens the database
     KV* kv = kv_open(argv[1], argv[5], hidx, allocationMethod);
@@ -110,7 +111,7 @@ int main(int argc, char* argv[]) {
     }
 
     fillsDatabase(nbElementsToInsert, kv, entryArray);
-    printDatabase(kv);
+    // printDatabase(kv);
 
     printf("Now deletes elements from database\n");
     deleleteKeysInterval(0, nbElementsToInsert / 2, kv, entryArray);

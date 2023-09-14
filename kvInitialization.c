@@ -1,5 +1,57 @@
 #include "kvInitialization.h"
 
+/*r : O_RDONLY
+r+ : O_CREAT|O_RDWR
+w : O_CREAT|O_TRUNC|O_WRONLY
+w+ : O_CREAT|O_RDWR
+Returns NULL if doesn't succeed to open the database
+*/
+KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t alloc) {
+    KV* kv = malloc(sizeof(struct s_KV));
+    len_t nbElementsInDKV;
+
+    if (initializeFiles(kv, mode, dbname, hashFunctionIndex) == -1)
+        return NULL;
+
+    unsigned int hashIndex;
+    if (readAtPosition(kv->fd_h, 1, &hashIndex, sizeof(unsigned int), kv) == -1)
+        return NULL;
+    kv->hashFunction = selectHashFunction(hashIndex);
+    if (kv->hashFunction == NULL) {  // checks whether an hash function is associated to that index
+        errno = EINVAL;
+        return NULL;
+    }
+
+    if (readAtPosition(kv->fd_blk, 1, &kv->nb_blocks, sizeof(unsigned int), kv) == -1)
+        return NULL;
+    memset(kv->block, 0, BLOCK_SIZE);
+    // reads block 0 so that does not erase it at next call of readNewBlock
+    if (readAtPosition(kv->fd_blk, getOffsetBlk(0), kv->block, BLOCK_SIZE, kv) == -1)
+        return NULL;
+    kv->indexCurrLoadedBlock = 0;
+
+    // adds space for 40 new blocks
+    kv->blockIsOccupied = calloc(kv->nb_blocks + 40, sizeof(bool));
+    kv->blockIsOccupiedSize = 40 + kv->nb_blocks;
+    if (readsBlockOccupiedness(kv) == -1) {
+        kv_close(kv);
+        return NULL;
+    }
+
+    if (readAtPosition(kv->fd_dkv, 1, &nbElementsInDKV, sizeof(int), kv) == -1)
+        return NULL;
+    // Adds space for 1000 elements
+    kv->dkv = calloc((nbElementsInDKV + 1000) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, sizeof(char));
+    if (readAtPosition(kv->fd_dkv, 1, kv->dkv,
+                       nbElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, kv) == -1)
+        return NULL;
+    kv->maxElementsInDKV = nbElementsInDKV + 1000;
+
+    kv->allocationMethod = alloc;
+    kv->mode = mode;
+    return kv;
+}
+
 int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned int hashFunctionIndex) {
     int databaseExists = openFiles(database, mode, dbname);
 
@@ -9,7 +61,7 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         // Writes index of used hashFunction
         if (write_controle(database->fd_h, &hashFunctionIndex, sizeof(unsigned int)) == -1)
             return -1;
-        // Sets the number of blocs and slots to 0
+        // Sets the number of blocks and slots to 0
         unsigned int j = 0;
         if (writeAtPosition(database->fd_dkv, 1, &j, 4, database) == -1)
             return -1;
@@ -27,6 +79,26 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         return -1;
     }
     return databaseExists;
+}
+
+// Fills the array whose entry i indicates whether block i is empty or not
+int readsBlockOccupiedness(KV* kv) {
+    int test;
+    unsigned char buffblock[BLOCK_SIZE];
+    for (unsigned int i = 0; i < kv->blockIsOccupiedSize; i++) {
+        if ((test = readAtPosition(kv->fd_blk, getOffsetBlk(i + 1), buffblock, BLOCK_SIZE, kv)) == -1)
+            return -1;
+
+        if (test == 0)  // there is no block
+            kv->blockIsOccupied[i] = false;
+        else {
+            if (getNbElementsInBlock(buffblock) == 0)  // No elements in block
+                kv->blockIsOccupied[i] = false;
+            else
+                kv->blockIsOccupied[i] = true;
+        }
+    }
+    return 1;
 }
 
 // Get opening mode of file following mode. Opening modes are: r,r+,w,w+

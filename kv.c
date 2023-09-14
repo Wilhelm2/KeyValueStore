@@ -1,52 +1,6 @@
 // WILHELM Daniel YAMAN Kendal
 
 #include "kv.h"
-/*r : O_RDONLY
-r+ : O_CREAT|O_RDWR
-w : O_CREAT|O_TRUNC|O_WRONLY
-w+ : O_CREAT|O_RDWR
-Returns NULL if doesn't succeed to open the database
-*/
-KV* kv_open(const char* dbname, const char* mode, int hidx, alloc_t alloc) {
-    KV* kv = malloc(sizeof(struct s_KV));
-    len_t nbElementsInDKV;
-
-    if (initializeFiles(kv, mode, dbname, hidx) == -1)
-        return NULL;
-
-    if (readAtPosition(kv->fd_dkv, 1, &nbElementsInDKV, sizeof(int), kv) == -1)
-        return NULL;
-
-    if (readAtPosition(kv->fd_blk, 1, &kv->nb_blocs, sizeof(unsigned int), kv) == -1)
-        return NULL;
-
-    // adds space for 40 other blocs
-    kv->blocIsOccupied = calloc(kv->nb_blocs + 40, sizeof(bool));
-    kv->blocIsOccupiedSize = 40 + kv->nb_blocs;
-    if (readsBlockOccupiedness(kv) == -1) {
-        kv_close(kv);
-        return NULL;
-    }
-
-    // Adds space for 1000 elements
-    kv->dkv = malloc((nbElementsInDKV + 1000) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV);
-    if (readAtPosition(kv->fd_dkv, 1, kv->dkv, sizeOfDKVFilled(kv), kv) == -1)
-        return NULL;
-    kv->maxElementsInDKV = nbElementsInDKV + 1000;
-
-    unsigned int indexbase;
-    if (readAtPosition(kv->fd_h, 1, &indexbase, sizeof(unsigned int), kv) == -1)
-        return NULL;
-    kv->hashFunction = selectHashFunction(indexbase);
-    if (kv->hashFunction == NULL) {  // checks whether an hash function is associated to that index
-        errno = EINVAL;
-        return NULL;
-    }
-
-    kv->allocationMethod = alloc;
-    kv->mode = mode;
-    return kv;
-}
 
 // Closes the database. Returns -1 when fails and 1 on success
 int kv_close(KV* kv) {
@@ -58,7 +12,7 @@ int kv_close(KV* kv) {
             return -1;
         }
 
-        if (writeAtPosition(kv->fd_blk, 1, &kv->nb_blocs, sizeof(unsigned int), kv) == -1) {
+        if (writeAtPosition(kv->fd_blk, 1, &kv->nb_blocks, sizeof(unsigned int), kv) == -1) {
             freeDatabase(kv);
             return -1;
         }
@@ -77,7 +31,7 @@ int kv_close(KV* kv) {
 
 void freeDatabase(KV* database) {
     free(database->dkv);
-    free(database->blocIsOccupied);
+    free(database->blockIsOccupied);
     free(database);
 }
 
@@ -85,7 +39,7 @@ void freeDatabase(KV* database) {
 // Returns 1 when found, 0 when not found, and -1 when error
 int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     unsigned int hash = kv->hashFunction(key);
-    int blockIndex;
+    int blockIndex, readTest;
     len_t offset;
     if (key == NULL || key->ptr == NULL || val == NULL) {
         errno = EINVAL;
@@ -96,14 +50,14 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
         return -1;
     }
 
-    // Gets the block which stores the localization of (key,val)
-    if ((blockIndex = RechercheBlocH(kv, hash)) < 1) {  // either no bloc associated  to that hash or error
-        if (blockIndex == 0)                            // no bloc
-            errno = EINVAL;
+    if ((readTest = readAtPosition(kv->fd_h, getOffsetH(hash), &blockIndex, sizeof(unsigned int), kv)) == -1)
+        return -1;
+    else if (readTest == 0 || blockIndex == -1) {  // either no block associated to that hash or error
+        errno = EINVAL;
         return blockIndex;
     }
 
-    // Lookup the key in KV. Returns often when found and -1 otherwise
+    // Lookup the key in KV. Returns offset when found and -1 otherwise
     offset = lookupKeyOffset(kv, key, blockIndex);
     if (offset == 0)
         return 0;
@@ -115,67 +69,53 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
 int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
     int hash = kv->hashFunction(key);
     int blockIndex;
-    int emplacement_dkv;
-    int test;
-    // Check right to write
-    if (strcmp(kv->mode, "r") == 0) {
+    if (strcmp(kv->mode, "r") == 0) {  // Checks rights to write
         errno = EACCES;
         return -1;
     }
 
+    if (kv_del(kv, key) == -1 && !(errno == EINVAL || errno == ENOENT))  // Deletes the key if already present
+        return -1;
+
+    // First gets a block
+    if ((blockIndex = getBlockIndexForHash(hash, kv)) == -1)
+        return -1;
+
+    unsigned int dkvSlot = allocatesDkvSlot(kv, key, val);  // Updates DKV
+
+    if (writeElementToKV(kv, key, val, access_offset_dkv(dkvSlot, kv)) == -1)  // Writes tuple to KV
+        return -1;
+    writeOffsetToBLK(kv, access_offset_dkv(dkvSlot, kv));
+    return 0;
+}
+
+int allocatesDkvSlot(KV* database, const kv_datum* key, const kv_datum* val) {
+    int dkvSlot;
+    if ((dkvSlot = choix_allocation(database)(database, key, val)) == -1) {  // no free slot, so creates one
+        createNewSlotEndDKV(database, key, val);
+        dkvSlot = getSlotsInDKV(database) - 1;
+    }
+    SetSlotDKVAsOccupied(database, dkvSlot);
+    trySplitDKVSlot(database, dkvSlot, key->len + sizeof(key->len) + val->len + sizeof(val->len));
+    return dkvSlot;
+}
+
+int getBlockIndexForHash(unsigned int hash, KV* kv) {
+    int blockIndex;
     // First looks the block up. The function returns 0 when the hash is associated to no block
-    if ((blockIndex = RechercheBlocH(kv, hash)) == 0) {
+    if ((blockIndex = getBlockIndexWithFreeEntry(kv, hash)) == 0) {
         // Allocate a block to the hash value
         blockIndex = AllocatesNewBlock(kv);
         if (blockIndex == -1)
             return -1;
-        if (writeBlockIndexToH(kv, hash, blockIndex) == -1)  // liaison entre .h et .blk
+        if (writeBlockIndexToH(kv, hash, blockIndex) == -1)
             return -1;
     }
-    if (blockIndex == -1)
-        return -1;
-    // recherche d'abord si la key est déjà présente dans la base et la supprime
-
-    test = lookupKeyOffset(kv, key, blockIndex);
-    if (test == 0 && errno != EINVAL)  // dans ce cas il y a eu une erreur
-        return -1;
-    if (test != 0)  // key déjà présente
-    {
-        // dans ce cas la key est déjà contenue dans la base donc on del
-        kv_del(kv, key);
-        // fait les même tests pour refaire le lien si del a supprimé le bloc
-        if ((blockIndex = RechercheBlocH(kv, hash)) == 0) {
-            blockIndex = AllocatesNewBlock(kv);  // realloue un bloc
-            if (blockIndex == -1)
-                return -1;
-            if (writeBlockIndexToH(kv, hash, blockIndex) == -1)  // liaison entre .h et .blk
-                return -1;
-        }
-        if (blockIndex == -1)
-            return -1;
-    }
-
-    // recherche d'un emplacement pour stocker la valeur
-    if ((emplacement_dkv = choix_allocation(kv)(kv, key, val)) == -1) {  // créé un nouvel emplacement dans dkv
-        createNewSlotEndDKV(kv, key, val);
-        emplacement_dkv = getSlotsInDKV(kv) - 1;
-    }
-    kv = SetSlotDKVAsOccupied(kv, emplacement_dkv);
-
-    len_t offset = access_offset_dkv(emplacement_dkv, kv);
-    writeElementToKV(kv, key, val, offset);
-
-    // établissement de la liaison entre .blk et .kv
-    if (lienBlkKv(blockIndex, kv, offset) == -1)
-        return -1;
-
-    // voit s'il y a encore de la place pour un autre couple et l'insère
-    insertionNewEspace(kv, emplacement_dkv, key, val);
-    return 0;
+    return blockIndex;
 }
 
 int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offset) {
-    // First writes into an array to do only write
+    // First writes into an array to do only one write
     unsigned int nbBytesToWrite = sizeof(len_t) + key->len + sizeof(len_t) + val->len;
     unsigned char* tabwrite = malloc(nbBytesToWrite);
     // Writes key length + key
@@ -202,15 +142,18 @@ int kv_del(KV* kv, const kv_datum* key) {
         return -1;
     }
 
-    if ((test = readAtPosition(kv->fd_h, getOffsetH(hash), &blockIndex, sizeof(blockIndex), kv)) == -1)
+    if ((test = readAtPosition(kv->fd_h, getOffsetH(hash), &blockIndex, sizeof(blockIndex), kv)) == -1) {
+        if (errno == EINVAL)
+            return 0;
         return -1;
+    }
 
     if (test == 0 || blockIndex == 0) {  // no registered block for this hash
         errno = ENOENT;
         return -1;
     }
 
-    if (readAtPosition(kv->fd_blk, getOffsetBlk(blockIndex), kv->bloc, BLOCK_SIZE, kv) == -1)
+    if (readNewBlock(blockIndex, kv) == -1)
         return -1;
 
     offset = lookupKeyOffset(kv, key, blockIndex);
@@ -269,70 +212,27 @@ len_t access_offset_dkv(int emplacement, KV* kv) {
     return (*(int*)(kv->dkv + offset));
 }
 
-//****************************************************************************//
-
-// Fills the array whose entry i indicates whether block i is empty or not
-int readsBlockOccupiedness(KV* kv) {
+// Lookup whether a block with a free entry is associated to hash
+// Returns blockIndex when there is, 0 when there is none and -1 upon error
+int getBlockIndexWithFreeEntry(KV* kv, int hash) {
     int test;
-    unsigned char buffbloc[BLOCK_SIZE];
-    for (unsigned int i = 0; i < kv->blocIsOccupiedSize; i++) {
-        if ((test = readAtPosition(kv->fd_blk, getOffsetBlk(i + 1), buffbloc, BLOCK_SIZE, kv)) == -1)
-            return -1;
-
-        if (test == 0)  // there is no block
-            kv->blocIsOccupied[i] = false;
-        else {
-            if (getNbElementsInBlock(buffbloc) == 0)  // No elements in block
-                kv->blocIsOccupied[i] = false;
-            else
-                kv->blocIsOccupied[i] = true;
-        }
-    }
-    return 1;
-}
-
-// recherche le numéro de bloc contenu à la position hash du fichier .h
-// numéro retourné : blockIndex + 1 (vu que les blocs commencent à 1)
-// en tête bloc : bloc suivant(char)+nr bloc suivant(int) + nb emplacements (int)
-// retourne 0 si aucun bloc alloué, -1 s'il y a une erreur, i>0 si bloc trouvé
-int RechercheBlocH(KV* kv, int hash) {
     int blockIndex;
-    int test;
-    int fils;
-    unsigned char* bloctmp;
 
+    // Reads the block index contained at the hash position
     if ((test = readAtPosition(kv->fd_h, getOffsetH(hash), &blockIndex, sizeof(int), kv)) == -1)
         return -1;
-
-    if (test == 0 || blockIndex == 0) {  // either read 0 bytes or 0 blocks are written
+    if (test == 0 || blockIndex == -1) {  // either read 0 bytes or has no registered block
         return 0;
-    } else {
-        // Must look till finds a bloc with free entries
-        while (1) {
-            // Reads the bloc
-            if (readAtPosition(kv->fd_blk, getOffsetBlk(blockIndex), kv->bloc, BLOCK_SIZE, kv) == -1)
-                return -1;
-
-            if ((getNbElementsInBlock(kv->bloc) + 1) * sizeof(len_t) < BLOCK_SIZE - LG_EN_TETE_BLOC) {
-                return blockIndex;                      // Available space
-            } else if (hasNextBloc(kv->bloc) == false)  // pas de fils -> en créé un.
-            {
-                bloctmp = kv->bloc;            // stock temporairement le père ATTENETION SOURCE DE BUGS!!
-                fils = AllocatesNewBlock(kv);  // sûr que ça fait un bug
-                if (fils == -1)
-                    return -1;
-                bloctmp[0] = true;
-                memcpy(bloctmp + 1, &fils, sizeof(unsigned int));
-
-                if (writeAtPosition(kv->fd_blk, getOffsetBlk(blockIndex), bloctmp,
-                                    getOffsetBloc(getNbElementsInBlock(bloctmp)), kv) == -1)
-                    return -1;
-                return fils;
-            } else {
-                blockIndex = getIndexNextBloc(kv->bloc);
-            }
-        }
     }
+    while (blockIndex >= 0) {
+        // Reads the block to look if it has free slots
+        if (readNewBlock(blockIndex, kv) == -1)
+            return -1;
+        if ((getNbElementsInBlock(kv->block) + 1) * sizeof(len_t) < BLOCK_SIZE - LG_EN_TETE_BLOCK)
+            return blockIndex;  // Space for another slot
+        blockIndex = getIndexNextBlock(kv->block);
+    }
+    return 0;
 }
 
 // Lookup the offset of key key
@@ -340,18 +240,18 @@ int RechercheBlocH(KV* kv, int hash) {
 len_t lookupKeyOffset(KV* kv, const kv_datum* key, int blockIndex) {
     int test;
     do {
-        for (unsigned int i = 0; i < getNbElementsInBlock(kv->bloc); i++) {
-            test = compareKeys(kv, key, *(int*)(kv->bloc + getOffsetBloc(i)));
+        for (unsigned int i = 0; i < getNbElementsInBlock(kv->block); i++) {
+            test = compareKeys(kv, key, *(int*)(kv->block + getOffsetBlock(i)));
             if (test == -1)
                 return -1;
             if (test == 1)
-                return *(int*)(kv->bloc + getOffsetBloc(i));
+                return *(int*)(kv->block + getOffsetBlock(i));
         }
-        if (hasNextBloc(kv->bloc)) {
-            if ((test = readAtPosition(kv->fd_blk, getOffsetBlk(blockIndex), kv->bloc, BLOCK_SIZE, kv)) == -1)
+        if (hasNextBlock(kv->block)) {
+            if (readNewBlock(blockIndex, kv) == -1)
                 return 0;
         }
-    } while (hasNextBloc(kv->bloc));
+    } while (hasNextBlock(kv->block));
 
     errno = EINVAL;  // Key not found
     return 0;
@@ -390,7 +290,7 @@ len_t RechercheTaillekey(KV* kv, len_t offset) {
     return longueur;
 }
 
-// Fill data into val
+// Fills data into val
 // Returns 1 on success and -1 on failure
 int fillValue(KV* database, len_t offset, kv_datum* val, const kv_datum* key) {
     if (val == NULL || key == NULL) {
@@ -407,6 +307,7 @@ int fillValue(KV* database, len_t offset, kv_datum* val, const kv_datum* key) {
 }
 
 // Reads the key stored at position offset into key
+// Returns 1 on success and -1 on failure
 int fillsKey(KV* kv, len_t offset, kv_datum* key) {
     if (key == NULL) {  // key must have been allocated
         errno = EINVAL;
@@ -424,19 +325,18 @@ int fillsKey(KV* kv, len_t offset, kv_datum* key) {
 
 // Returns the index of first empty block. Assumes that an empty block exists
 int AllocatesNewBlock(KV* kv) {
-    memset(kv->bloc, 0, BLOCK_SIZE);
     unsigned int blockIndex = 0;
     while (true) {
-        if (blockIndex == kv->blocIsOccupiedSize)  // increases the size of the array
+        if (blockIndex == kv->blockIsOccupiedSize)  // increases the size of the array
         {
-            kv->blocIsOccupiedSize += 100;
-            kv->blocIsOccupied = realloc(kv->blocIsOccupied, kv->blocIsOccupiedSize * sizeof(bool));
-            memset(kv->blocIsOccupied + kv->blocIsOccupiedSize - 100, false, 100 * sizeof(bool));  // sets new entries
+            kv->blockIsOccupiedSize += 100;
+            kv->blockIsOccupied = realloc(kv->blockIsOccupied, kv->blockIsOccupiedSize * sizeof(bool));
+            memset(kv->blockIsOccupied + kv->blockIsOccupiedSize - 100, false, 100 * sizeof(bool));  // sets new entries
         }
-        if (kv->blocIsOccupied[blockIndex] == false)  // empty block
+        if (kv->blockIsOccupied[blockIndex] == false)  // empty block
         {
-            kv->blocIsOccupied[blockIndex] = true;
-            kv->nb_blocs++;
+            kv->blockIsOccupied[blockIndex] = true;
+            kv->nb_blocks++;
             break;
         }
         blockIndex++;
@@ -452,62 +352,25 @@ int writeBlockIndexToH(KV* kv, int hash, int blockIndex) {
     return 1;
 }
 
-// regarde s'il y a encore de la place pour une autre key + valeur
-// et regarde si des voisins sont libres + insérer cet nouvel espace dans dkv
-// emplacement_dkv : numéro de l'emplacement dans dkv (i)
-void insertionFusionEspace(KV* kv, unsigned int emplacement_dkv) {
-    int voisins = -1;  // voisin suivant
-    int voisinp = -1;  // voisin précédent
-    // recherche l'emplacement suivant et précédent
-    if (emplacement_dkv != 0)
-        voisinp = emplacement_dkv - 1;
-    if (emplacement_dkv + 1 != *(unsigned int*)kv->dkv)
-        voisins = emplacement_dkv + 1;
-    fusionVoisinsVidesSP(voisins, emplacement_dkv, voisinp, kv);
-    // si l'emplacement est le dernier le supprime (diminue le nb d'emplacments
-    if (emplacement_dkv == getSlotsInDKV(kv) || emplacement_dkv + 1 == getSlotsInDKV(kv))
-        setSlotsInDKV(kv, getSlotsInDKV(kv) - 1);
-}
-
-void fusionVoisinsVidesSP(int leftSlot, int emplacement_dkv, int rightSlot, KV* kv) {
-    if (rightSlot != -1)  // si le voisin précédent est vide
-    {
-        // Updates the offset to the one of voisinp
-        unsigned int newOffset = access_offset_dkv(rightSlot, kv);
-        memcpy(kv->dkv + getOffsetDkv(emplacement_dkv) + sizeof(len_t), &newOffset, sizeof(unsigned int));
-        decaledkv_arriere(kv, rightSlot, emplacement_dkv);  // removes rightSlot
-        // removes last element in ftruncate in close
-    }
-    if (leftSlot != -1)  // si le voisin suivant est vide
-    {
-        if (rightSlot != -1) {
-            leftSlot--;
-            emplacement_dkv--;
+void tryMergeSlots(KV* database, unsigned int centralSlot) {
+    if (centralSlot > 0) {
+        if (access_lg_dkv(centralSlot - 1, database) > 0) {  // free slot -> merge
+            mergeSlots(centralSlot - 1, centralSlot, database);
+            centralSlot--;  // since just removed the left slot
         }
-        decaledkv_arriere(kv, leftSlot, emplacement_dkv);  // removes leftSlot
-        // removes last element in ftruncate in close
+    }
+    if (centralSlot < getSlotsInDKV(database) - 1) {
+        if (access_lg_dkv(centralSlot + 1, database) > 0)  // free slot -> merge
+            mergeSlots(centralSlot, centralSlot + 1, database);
     }
 }
 
-// Shifts slots one to the left
-void decaledkv_arriere(KV* kv, int slotToDelete, int centralSlot) {
-    // Adds the length of neighbor to centralSlot
-    len_t newSize = access_lg_dkv(centralSlot, kv) + access_lg_dkv(slotToDelete, kv);
-    memcpy(kv->dkv + getOffsetDkv(centralSlot), &newSize, sizeof(len_t));
-
-    memcpy(kv->dkv + getOffsetDkv(slotToDelete), kv->dkv + getOffsetDkv(slotToDelete + 1),
-           sizeOfDKVFilled(kv) - getOffsetDkv(slotToDelete + 1));
-    setSlotsInDKV(kv, getSlotsInDKV(kv) - 1);
-}
-
-// Shifts slots one to the right
-void decaledkv_avant(KV* kv, int firstSlot) {
-    if (getSlotsInDKV(kv) == kv->maxElementsInDKV)  // adds space to dkv
-        kv = increaseSizeDkv(kv);
-
-    memcpy(kv->dkv + getOffsetDkv(firstSlot), kv->dkv + getOffsetDkv(firstSlot + 1),
-           sizeOfDKVFilled(kv) - getOffsetDkv(firstSlot + 1));
-    setSlotsInDKV(kv, getSlotsInDKV(kv) + 1);
+void mergeSlots(unsigned int left, unsigned int right, KV* database) {
+    len_t newSize = access_lg_dkv(left, database) + access_lg_dkv(right, database);
+    memcpy(database->dkv + getOffsetDkv(left), database->dkv + getOffsetDkv(right),
+           sizeOfDKVFilled(database) - getOffsetDkv(right));
+    memcpy(database->dkv + getOffsetDkv(left), &newSize, sizeof(len_t));
+    setSlotsInDKV(database, getSlotsInDKV(database) - 1);
 }
 
 // libère un emplacement identifié par son offset dans .dkv
@@ -517,8 +380,8 @@ void libereEmplacementdkv(len_t offset, KV* kv) {
         if (access_offset_dkv(i, kv) == offset) {
             unsigned int newSize = access_lg_dkv(i, kv);
             memcpy(kv->dkv + getOffsetDkv(i), &newSize, sizeof(len_t));
-            insertionFusionEspace(kv, i);
-            if (i == nb_emplacements)  // BUG voir à delete car a priori il faut toujours decr le nombre d'éléments
+            tryMergeSlots(kv, i);
+            if (i == (getSlotsInDKV(kv) - 1))  // the newly freed slot is the last one of DKV
                 setSlotsInDKV(kv, getSlotsInDKV(kv) - 1);
             return;
         }
@@ -526,41 +389,39 @@ void libereEmplacementdkv(len_t offset, KV* kv) {
 }
 
 // Frees an entry in blk. Returns 1 on success and -1 on failure
-int libereEmplacementblk(int blockIndex, len_t offset, KV* kv, int hash, int previousBloc) {
+int libereEmplacementblk(int blockIndex, len_t offset, KV* kv, int hash, int previousblock) {
     do {
-        unsigned int nbSlots = getNbElementsInBlock(kv->bloc);
-        unsigned int offsetOfLastElementInBloc = *(len_t*)(kv->bloc + getOffsetBloc(nbSlots - 1));
+        unsigned int nbSlots = getNbElementsInBlock(kv->block);
+        unsigned int offsetOfLastElementInblock = *(len_t*)(kv->block + getOffsetBlock(nbSlots - 1));
         for (unsigned int i = 0; i < nbSlots; i++) {
-            if (offset == *(len_t*)(kv->bloc + getOffsetBloc(i))) {  // found element
+            if (offset == *(len_t*)(kv->block + getOffsetBlock(i))) {  // found element
                 // swaps the offset of the element with the one of the last element of the bloc
-                memcpy(kv->bloc + getOffsetBloc(i), &offsetOfLastElementInBloc, sizeof(unsigned int));
+                memcpy(kv->block + getOffsetBlock(i), &offsetOfLastElementInblock, sizeof(unsigned int));
                 nbSlots--;
-                setNbElementsInBlock(kv->bloc, nbSlots);
+                setNbElementsInBlock(kv->block, nbSlots);
 
-                if (nbSlots == 0 && previousBloc == 0 && hasNextBloc(kv->bloc) == false) {  // frees the bloc entry
-                    if (supprimeblocdeh(kv, hash) == -1)
+                if (nbSlots == 0 && previousblock == 0 && hasNextBlock(kv->block) == false) {  // frees the blockentry
+                    if (supprimeBlockdeh(kv, hash) == -1)
                         return -1;
-                    kv->nb_blocs--;                              // très bizarre
-                    kv->blocIsOccupied[blockIndex - 1] = false;  // marks the bloc as free
+                    kv->blockIsOccupied[blockIndex] = false;  // marks the blockas free
+                    printf("marks block %d as free\n", blockIndex);
+                    //                    exit(1);
                 }
-
-                unsigned int writeBytes = getOffsetBloc(nbSlots);
-                if (writeAtPosition(kv->fd_blk, getOffsetBlk(blockIndex), kv->bloc, writeBytes, kv) == -1)
-                    return -1;
                 return 1;
             }
         }
         // entry not found
-        previousBloc = blockIndex;
-        blockIndex = getIndexNextBloc(kv->bloc);  // index of next bloc - apparemment assuré que le prochain bloc existe
-        if ((readAtPosition(kv->fd_blk, getOffsetBlk(blockIndex), kv->bloc, BLOCK_SIZE, kv)) == -1)
+        previousblock = blockIndex;
+        blockIndex =
+            getIndexNextBlock(kv->block);  // index of next block- apparemment assuré que le prochain blockexiste
+        if (readNewBlock(blockIndex, kv) == -1)
             return 0;
     } while (true);
     return 1;
 }
 
 // Removes block entry from h file
-int supprimeblocdeh(KV* kv, int hash) {
+int supprimeBlockdeh(KV* kv, int hash) {
     unsigned int i = 0;
     if (writeAtPosition(kv->fd_h, getOffsetH(hash), &i, sizeof(unsigned int), kv) == -1)
         return -1;
@@ -572,7 +433,7 @@ void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val) {
     len_t offsetNewSlot;
 
     if (getSlotsInDKV(kv) == kv->maxElementsInDKV)
-        kv = increaseSizeDkv(kv);
+        increaseSizeDkv(kv);
 
     len_t lengthNewSlot = sizeof(len_t) + key->len + sizeof(len_t) + val->len;
     memcpy(kv->dkv + getOffsetDkv(getSlotsInDKV(kv)), &lengthNewSlot, sizeof(len_t));
@@ -585,78 +446,72 @@ void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val) {
 }
 
 // Increases the size of dkv
-KV* increaseSizeDkv(KV* database) {
+void increaseSizeDkv(KV* database) {
     database->maxElementsInDKV += 1000;
     database->dkv = realloc(database->dkv, sizeOfDKVMax(database));
-    return database;
 }
 
-// ATTENTION LA NUMEROTATION DES BLOCS COMMENCE A UN DONC FAUT ENLEVER 1 A blockIndex
-// fonction qui fait le lien entre l'emplacement dans le bloc et kv
-int lienBlkKv(int blockIndex, KV* kv, len_t emplacement_kv) {
-    int bloc = blockIndex - 1;  // car la numérotation des blocs commence à 1
-    // recherche emplacement dans bloc vide
-    unsigned int nbSlots = getNbElementsInBlock(kv->bloc);
+// Writes KV offset to BLK
+void writeOffsetToBLK(KV* kv, len_t offsetKV) {
+    unsigned int nbSlots = getNbElementsInBlock(kv->block);
+    memcpy(kv->block + getOffsetBlock(nbSlots), &offsetKV, sizeof(len_t));
+    setNbElementsInBlock(kv->block, nbSlots + 1);
+}
 
-    memcpy(kv->bloc + getOffsetBloc(nbSlots), &emplacement_kv, sizeof(len_t));
-    setNbElementsInBlock(kv->bloc, nbSlots + 1);
+// Sets DKV slot as occupied by multiplying its length by -1
+void SetSlotDKVAsOccupied(KV* kv, int emplacement_dkv) {
+    int length = access_lg_dkv(emplacement_dkv, kv) * (-1);
+    memcpy(kv->dkv + getOffsetDkv(emplacement_dkv), &length, sizeof(int));
+}
 
-    if (writeAtPosition(kv->fd_blk, getOffsetBlk(bloc + 1), kv->bloc, BLOCK_SIZE, kv) == -1)  // Writes the bloc
+// Splits the DKV slot in two if there is enough space to contain another slot
+void trySplitDKVSlot(KV* kv, unsigned int slotToSplit, unsigned int slotToSplitRequiredLength) {
+    len_t remainingBytes = (-1) * access_lg_dkv(slotToSplit, kv) - slotToSplitRequiredLength;
+    if (remainingBytes > (2 * sizeof(unsigned int) + 2)) {
+        // Size for another slot of at least one character for key and value
+        insertNewSlotDKV(kv, slotToSplit);
+        setSlotSizeDkv(kv, slotToSplit + 1, remainingBytes);
+        setSlotOffsetDkv(kv, slotToSplit + 1, getSlotOffsetDkv(kv, slotToSplit) + slotToSplitRequiredLength);
+        setSlotSizeDkv(kv, slotToSplit, slotToSplitRequiredLength * (-1));  //*-1 to indicate that slot is taken
+    }
+}
+
+// Shifts slots one to the right
+void insertNewSlotDKV(KV* database, int firstSlot) {
+    if (getSlotsInDKV(database) == database->maxElementsInDKV)  // adds space to dkv
+        increaseSizeDkv(database);
+
+    memcpy(database->dkv + getOffsetDkv(firstSlot), database->dkv + getOffsetDkv(firstSlot + 1),
+           sizeOfDKVFilled(database) - getOffsetDkv(firstSlot + 1));
+    setSlotsInDKV(database, getSlotsInDKV(database) + 1);
+}
+
+// Truncates KV
+int truncate_kv(KV* kv) {
+    if (strcmp(kv->mode, "r") == 0)  // don't truncate since kv wasn't changed
+        return 1;
+    len_t maxOffset = 0;
+    len_t maxLength = 0;
+    unsigned int nbElementsInDKV = getSlotsInDKV(kv);
+    for (unsigned int i = 0; i < nbElementsInDKV; i++) {
+        if (maxOffset <= access_offset_dkv(i, kv)) {
+            maxOffset = access_offset_dkv(i, kv);
+            maxLength = abs(access_lg_dkv(i, kv));
+        }
+    }
+    if (ftruncate(kv->fd_kv, maxOffset + maxLength + LG_EN_TETE_KV) == -1)
         return -1;
     return 1;
 }
 
-// met l'emplacement en tant que place occupée dans dkv
-KV* SetSlotDKVAsOccupied(KV* kv, int emplacement_dkv) {
-    int length = access_lg_dkv(emplacement_dkv, kv) * (-1);
-    memcpy(kv->dkv + getOffsetDkv(emplacement_dkv), &length, sizeof(int));
-    return kv;
-}
-
-// voit s'il y a encore de la place pour une autre key + valeur
-// puis insérer cet nouvel espace dans dkv
-// emplacement_dkv : numéro de l'emplacement dans dkv (i)
-void insertionNewEspace(KV* kv, int emp_dkv, const kv_datum* key, const kv_datum* val) {
-    int nbemplacements = getSlotsInDKV(kv);
-    len_t taille_couple = sizeof(len_t) + key->len + sizeof(len_t) + val->len;
-    int octets_restants = (-1) * access_lg_dkv(emp_dkv, kv) - (taille_couple);
-    // regarde si place pour une autre key
-    if (octets_restants - 10 > 0)  // s'il reste plus de 10 octets (2int + 2 octets)
-    {
-        int tmp = taille_couple * (-1);
-        memcpy(kv->dkv + getOffsetDkv(emp_dkv), &tmp, sizeof(unsigned int));
-    } else  // sinon retourne kv
-        return;
-
-    if (emp_dkv == nbemplacements - 1)
-        return;
-    // si n'a pas pu fusionner avec le voisin précédent, fait un nouvel emplct
-    creationNewVoisin(kv, octets_restants, emp_dkv + 1, taille_couple);
-}
-
-// créé un nouvel emplacement
-void creationNewVoisin(KV* kv, int octets_restants, int empl_dkv, len_t requiredSize) {
-    decaledkv_avant(kv, empl_dkv);  // décalle d'abord tout dkv vers une position à l'avant
-    unsigned offsetNewSlot = access_offset_dkv(empl_dkv - 1, kv) + requiredSize;
-    memcpy(kv->dkv + getOffsetDkv(empl_dkv), &octets_restants, sizeof(len_t));
-    memcpy(kv->dkv + getOffsetDkv(empl_dkv) + sizeof(len_t), &offsetNewSlot, sizeof(unsigned int));
-}
-
-// tronque kv
-int truncate_kv(KV* kv) {
-    if (strcmp(kv->mode, "r") == 0)  // pas besoin de tronquer vu que rien n'a changé
-        return 1;
-    len_t offset_max = 0;
-    len_t longueur_max = 0;
-    unsigned int nbElementsInDKV = getSlotsInDKV(kv);
-    for (unsigned int i = 0; i < nbElementsInDKV; i++) {
-        if (offset_max <= access_offset_dkv(i, kv)) {
-            offset_max = access_offset_dkv(i, kv);
-            longueur_max = abs(access_lg_dkv(i, kv));
-        }
-    }
-    // on tronque à offset_max+longueur_max + LG_EN_TETE_KV
-    if (ftruncate(kv->fd_kv, offset_max + longueur_max + LG_EN_TETE_KV) == -1)
+// Reads a new block by first writing the previous one to the BLK file
+int readNewBlock(unsigned int index, KV* database) {
+    if (writeAtPosition(database->fd_blk, getOffsetBlk(database->indexCurrLoadedBlock), database->block, BLOCK_SIZE,
+                        database) == -1)
+        return -1;
+    memset(database->block, 0, BLOCK_SIZE);
+    database->indexCurrLoadedBlock = index;
+    if (readAtPosition(database->fd_blk, getOffsetBlk(index), database->block, BLOCK_SIZE, database) == -1)
         return -1;
     return 1;
 }

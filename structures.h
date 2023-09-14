@@ -31,11 +31,11 @@ typedef struct kv_datum kv_datum;
 
 typedef enum { FIRST_FIT, WORST_FIT, BEST_FIT } alloc_t;
 
-#define LG_EN_TETE_H 5     // MagicN + hashFunctionIndex
-#define LG_EN_TETE_BLK 5   // MagicN + nb_blocs
-#define LG_EN_TETE_KV 1    // MagicN
-#define LG_EN_TETE_DKV 5   // MagicN + nb_blocs
-#define LG_EN_TETE_BLOC 9  // hasNextBlock(bool) + indexNextBlockWithSameHash(int) + numberOfSlots(int)
+#define LG_EN_TETE_H 5      // MagicN + hashFunctionIndex
+#define LG_EN_TETE_BLK 5    // MagicN + nb_blocks
+#define LG_EN_TETE_KV 1     // MagicN
+#define LG_EN_TETE_DKV 5    // MagicN + nb_blocks
+#define LG_EN_TETE_BLOCK 9  // hasNextBlock(bool) + indexNextBlockWithSameHash(int) + numberOfSlots(int)
 
 #define BLOCK_SIZE 4096
 
@@ -50,11 +50,12 @@ struct s_KV {
     const char* mode;
     unsigned int nextTuple;
     int (*hashFunction)(const kv_datum* kdatum);
-    unsigned char bloc[BLOCK_SIZE];
-    bool* blocIsOccupied;  // array containing whether blocs are occupied or not. blocIsOccupied[i]=true means that bloc
-                           // i is occupied
-    unsigned int blocIsOccupiedSize;
-    unsigned int nb_blocs;
+    unsigned char block[BLOCK_SIZE];
+    unsigned int indexCurrLoadedBlock;
+    bool* blockIsOccupied;  // array containing whether blocks are occupied or not. blockIsOccupied[i]=true means that
+                            // block i is occupied
+    unsigned int blockIsOccupiedSize;
+    unsigned int nb_blocks;
 };
 typedef struct s_KV KV;
 
