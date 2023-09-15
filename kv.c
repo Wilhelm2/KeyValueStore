@@ -58,7 +58,7 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     }
 
     // Lookup the key in KV. Returns offset when found and -1 otherwise
-    offset = lookupKeyOffset(kv, key, blockIndex);
+    offset = lookupKeyOffset(kv, key);
     if (offset == 0)
         return 0;
     if (fillValue(kv, offset, val, key) == -1)
@@ -85,7 +85,7 @@ int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
 
     if (writeElementToKV(kv, key, val, access_offset_dkv(dkvSlot, kv)) == -1)  // Writes tuple to KV
         return -1;
-    writeOffsetToBLK(kv, access_offset_dkv(dkvSlot, kv));
+    addsEntryToBLK(kv, access_offset_dkv(dkvSlot, kv));
     return 0;
 }
 
@@ -156,7 +156,7 @@ int kv_del(KV* kv, const kv_datum* key) {
     if (readNewBlock(blockIndex, kv) == -1)
         return -1;
 
-    offset = lookupKeyOffset(kv, key, blockIndex);
+    offset = lookupKeyOffset(kv, key);
     if (offset == 0 && errno != EINVAL)
         return -1;
     else if (offset == 0) {  // key not contained
@@ -164,7 +164,7 @@ int kv_del(KV* kv, const kv_datum* key) {
         return -1;
     }
 
-    libereEmplacementdkv(offset, kv);
+    freeSlotDKV(offset, kv);
     if (libereEmplacementblk(blockIndex, offset, kv, hash, 0) == -1)
         return -1;
     return 0;
@@ -237,8 +237,9 @@ int getBlockIndexWithFreeEntry(KV* kv, int hash) {
 
 // Lookup the offset of key key
 // Returns offset when found, -1 when error, and 0 when not found
-len_t lookupKeyOffset(KV* kv, const kv_datum* key, int blockIndex) {
+len_t lookupKeyOffset(KV* kv, const kv_datum* key) {
     int test;
+    bool nextBlock;
     do {
         for (unsigned int i = 0; i < getNbElementsInBlock(kv->block); i++) {
             test = compareKeys(kv, key, *(int*)(kv->block + getOffsetBlock(i)));
@@ -248,10 +249,11 @@ len_t lookupKeyOffset(KV* kv, const kv_datum* key, int blockIndex) {
                 return *(int*)(kv->block + getOffsetBlock(i));
         }
         if (hasNextBlock(kv->block)) {
-            if (readNewBlock(blockIndex, kv) == -1)
+            nextBlock = hasNextBlock(kv->block);
+            if (readNewBlock(getIndexNextBlock(kv->block), kv) == -1)
                 return 0;
         }
-    } while (hasNextBlock(kv->block));
+    } while (nextBlock);
 
     errno = EINVAL;  // Key not found
     return 0;
@@ -282,12 +284,12 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offset) {
     return 1;
 }
 
-// retourne la taille de la key ou 0 si erreur
-len_t RechercheTaillekey(KV* kv, len_t offset) {
-    len_t longueur;
-    if (readAtPosition(kv->fd_kv, getOffsetKV(offset), &longueur, sizeof(len_t), kv) == -1)
+// Returns size of key or -1 when error
+len_t getKeyLengthFromKV(KV* kv, len_t offset) {
+    len_t length;
+    if (readAtPosition(kv->fd_kv, getOffsetKV(offset), &length, sizeof(len_t), kv) == -1)
         return 0;
-    return longueur;
+    return length;
 }
 
 // Fills data into val
@@ -314,7 +316,7 @@ int fillsKey(KV* kv, len_t offset, kv_datum* key) {
         return -1;
     }
 
-    key->len = RechercheTaillekey(kv, offset);
+    key->len = getKeyLengthFromKV(kv, offset);
     if (key->len == 0)
         return -1;
     key->ptr = malloc(key->len);
@@ -341,11 +343,11 @@ int AllocatesNewBlock(KV* kv) {
         }
         blockIndex++;
     }
-    return blockIndex + 1;  // because block numerotation begins at 1
+    return blockIndex;
 }
 
-// écrit le numéro de bloc
-// retourne 1 si réussi -1 sinon
+// Write block index to H file
+// Returns 1 on success and -1 on failure
 int writeBlockIndexToH(KV* kv, int hash, int blockIndex) {
     if (writeAtPosition(kv->fd_h, getOffsetH(hash), &blockIndex, sizeof(unsigned int), kv) == -1)
         return -1;
@@ -373,13 +375,12 @@ void mergeSlots(unsigned int left, unsigned int right, KV* database) {
     setSlotsInDKV(database, getSlotsInDKV(database) - 1);
 }
 
-// libère un emplacement identifié par son offset dans .dkv
-void libereEmplacementdkv(len_t offset, KV* kv) {
-    unsigned int nb_emplacements = getSlotsInDKV(kv);
-    for (unsigned int i = 0; i < nb_emplacements; i++) {
+// Frees an entry of DKV identified by its offset in KV
+void freeSlotDKV(len_t offset, KV* kv) {
+    for (unsigned int i = 0; i < getSlotsInDKV(kv); i++) {
         if (access_offset_dkv(i, kv) == offset) {
-            unsigned int newSize = access_lg_dkv(i, kv);
-            memcpy(kv->dkv + getOffsetDkv(i), &newSize, sizeof(len_t));
+            int length = (-1) * access_lg_dkv(i, kv);  // multiplies by -1 to tag the slot as free
+            memcpy(kv->dkv + getOffsetDkv(i), &length, sizeof(int));
             tryMergeSlots(kv, i);
             if (i == (getSlotsInDKV(kv) - 1))  // the newly freed slot is the last one of DKV
                 setSlotsInDKV(kv, getSlotsInDKV(kv) - 1);
@@ -401,11 +402,10 @@ int libereEmplacementblk(int blockIndex, len_t offset, KV* kv, int hash, int pre
                 setNbElementsInBlock(kv->block, nbSlots);
 
                 if (nbSlots == 0 && previousblock == 0 && hasNextBlock(kv->block) == false) {  // frees the blockentry
-                    if (supprimeBlockdeh(kv, hash) == -1)
+                    if (freeHashtableEntry(kv, hash) == -1)
                         return -1;
                     kv->blockIsOccupied[blockIndex] = false;  // marks the blockas free
                     printf("marks block %d as free\n", blockIndex);
-                    //                    exit(1);
                 }
                 return 1;
             }
@@ -420,12 +420,9 @@ int libereEmplacementblk(int blockIndex, len_t offset, KV* kv, int hash, int pre
     return 1;
 }
 
-// Removes block entry from h file
-int supprimeBlockdeh(KV* kv, int hash) {
-    unsigned int i = 0;
-    if (writeAtPosition(kv->fd_h, getOffsetH(hash), &i, sizeof(unsigned int), kv) == -1)
-        return -1;
-    return 1;
+// Sets hashtable entry to -1, i.e. sets the entry to free
+int freeHashtableEntry(KV* kv, int hash) {
+    return writeBlockIndexToH(kv, hash, -1);
 }
 
 // Creates new slot at the end of DKV
@@ -452,7 +449,7 @@ void increaseSizeDkv(KV* database) {
 }
 
 // Writes KV offset to BLK
-void writeOffsetToBLK(KV* kv, len_t offsetKV) {
+void addsEntryToBLK(KV* kv, len_t offsetKV) {
     unsigned int nbSlots = getNbElementsInBlock(kv->block);
     memcpy(kv->block + getOffsetBlock(nbSlots), &offsetKV, sizeof(len_t));
     setNbElementsInBlock(kv->block, nbSlots + 1);

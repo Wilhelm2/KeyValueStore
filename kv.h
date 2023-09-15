@@ -28,22 +28,22 @@ unsigned int access_lg_dkv(unsigned int emplacement, KV* kv);
 
 // fonctions utilisées dans l'ordre :
 int getBlockIndexWithFreeEntry(KV* kv, int hash);
-len_t lookupKeyOffset(KV* kv, const kv_datum* key, int numbloc);
+len_t lookupKeyOffset(KV* kv, const kv_datum* key);
 int compareKeys(KV* kv, const kv_datum* key, len_t offset);
-len_t RechercheTaillekey(KV* kv, len_t offset);
+len_t getKeyLengthFromKV(KV* kv, len_t offset);
 int fillValue(KV* kv, len_t offset, kv_datum* val, const kv_datum* key);
 int fillsKey(KV* kv, len_t offset, kv_datum* key);
 int AllocatesNewBlock(KV* kv);
 int writeBlockIndexToH(KV* kv, int hash, int numbloc);
-void libereEmplacementdkv(len_t offset, KV* kv);
+void freeSlotDKV(len_t offset, KV* kv);
 void tryMergeSlots(KV* database, unsigned int centralSlot);
 void mergeSlots(unsigned int left, unsigned int right, KV* database);
 
-int libereEmplacementblk(int numbloc, len_t offset, KV* kv, int hash, int previousBloc);
-int supprimeBlockdeh(KV* kv, int hash);
+int libereEmplacementblk(int numblock, len_t offset, KV* kv, int hash, int previousBloc);
+int freeHashtableEntry(KV* kv, int hash);
 void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val);
 void increaseSizeDkv(KV* kv);
-void writeOffsetToBLK(KV* kv, len_t emplacement_kv);
+void addsEntryToBLK(KV* kv, len_t emplacement_kv);
 void creationNewVoisin(KV* kv, int octets_restants, int empl_dkv, len_t requiredSize);
 void insertNewSlotDKV(KV* kv, int emplacement_a_decal);
 int truncate_kv(KV* kv);
