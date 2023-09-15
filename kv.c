@@ -146,7 +146,7 @@ void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val) {
     len_t lengthNewSlot = sizeof(len_t) + key->len + sizeof(len_t) + val->len;
     memcpy(kv->dkvh.dkv + getOffsetDkv(getSlotsInDKV(kv)), &lengthNewSlot, sizeof(len_t));
     if (getSlotsInDKV(kv) == 0)
-        offsetNewSlot = 0;
+        offsetNewSlot = LG_EN_TETE_KV;
     else
         offsetNewSlot = access_offset_dkv(getSlotsInDKV(kv) - 1, kv) + abs(access_lg_dkv(getSlotsInDKV(kv) - 1, kv));
     memcpy(kv->dkvh.dkv + getOffsetDkv(getSlotsInDKV(kv)) + sizeof(len_t), &offsetNewSlot, sizeof(len_t));
@@ -160,9 +160,9 @@ void increaseSizeDkv(KV* database) {
 }
 
 // Sets DKV slot as occupied by multiplying its length by -1
-void SetSlotDKVAsOccupied(KV* kv, int emplacement_dkv) {
-    int length = access_lg_dkv(emplacement_dkv, kv) * (-1);
-    memcpy(kv->dkvh.dkv + getOffsetDkv(emplacement_dkv), &length, sizeof(int));
+void SetSlotDKVAsOccupied(KV* kv, int dkvSlot) {
+    int length = access_lg_dkv(dkvSlot, kv) * (-1);
+    memcpy(kv->dkvh.dkv + getOffsetDkv(dkvSlot), &length, sizeof(int));
 }
 
 // Splits the DKV slot in two if there is enough space to contain another slot
@@ -187,7 +187,7 @@ void insertNewSlotDKV(KV* database, int firstSlot) {
     setSlotsInDKV(database, getSlotsInDKV(database) + 1);
 }
 
-int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offset) {
+int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offsetKV) {
     // First writes into an array to do only one write
     unsigned int nbBytesToWrite = sizeof(len_t) + key->len + sizeof(len_t) + val->len;
     unsigned char* tabwrite = malloc(nbBytesToWrite);
@@ -198,7 +198,7 @@ int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t off
     memcpy(tabwrite + sizeof(len_t) + key->len, &val->len, sizeof(len_t));
     memcpy(tabwrite + sizeof(len_t) + key->len + sizeof(len_t), val->ptr, val->len);
 
-    if (writeAtPosition(kv->fds.fd_kv, getOffsetKV(offset), tabwrite, nbBytesToWrite, kv) == -1)
+    if (writeAtPosition(kv->fds.fd_kv, offsetKV, tabwrite, nbBytesToWrite, kv) == -1)
         return -1;
 
     free(tabwrite);
@@ -208,6 +208,7 @@ int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t off
 // Writes KV offset to BLK
 void addsEntryToBLK(KV* kv, len_t offsetKV) {
     unsigned int nbSlots = getNbElementsInBlock(kv->bh.block);
+    printf("writes offset to blk %d\n", offsetKV);
     memcpy(kv->bh.block + getOffsetBlock(nbSlots), &offsetKV, sizeof(len_t));
     setNbElementsInBlock(kv->bh.block, nbSlots + 1);
 }
@@ -217,7 +218,7 @@ void addsEntryToBLK(KV* kv, len_t offsetKV) {
 int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     unsigned int hash = kv->hashFunction(key);
     int blockIndex, readTest;
-    len_t offset;
+    int offset;
     if (key == NULL || key->ptr == NULL || val == NULL) {
         errno = EINVAL;
         return -1;
@@ -231,11 +232,16 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
         return -1;
     else if (readTest == 0 || blockIndex == -1) {  // either no block associated to that hash or error
         errno = EINVAL;
-        return blockIndex;
+        return 0;
+    }
+    if (((unsigned int)blockIndex) != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlock(blockIndex, kv) == -1)
+            return -1;
     }
 
-    // Lookup the key in KV. Returns offset when found and -1 otherwise
-    offset = lookupKeyOffset(kv, key);
+    // Lookup the key in KV. Returns offset when found
+    offset = lookupKeyOffsetKV(kv, key);
+    printf("hash %d blockIndex %d readTest %d offset %d\n", hash, blockIndex, readTest, offset);
     if (offset == 0)
         return 0;
     if (fillValue(kv, offset, val, key) == -1)
@@ -245,15 +251,16 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
 
 // Lookup the offset of key key
 // Returns offset when found, -1 when error, and 0 when not found
-len_t lookupKeyOffset(KV* kv, const kv_datum* key) {
+len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key) {
     int test;
     bool nextBlock;
     do {
         for (unsigned int i = 0; i < getNbElementsInBlock(kv->bh.block); i++) {
             test = compareKeys(kv, key, *(int*)(kv->bh.block + getOffsetBlock(i)));
+            printf("checks element %d cmp result %d\n", i, test);
             if (test == -1)
-                return -1;
-            if (test == 1)
+                return 0;
+            else if (test == 1)
                 return *(int*)(kv->bh.block + getOffsetBlock(i));
         }
         if (hasNextBlock(kv->bh.block)) {
@@ -268,14 +275,14 @@ len_t lookupKeyOffset(KV* kv, const kv_datum* key) {
 }
 
 // Returns 1 when keys are equal, -1 when error, and 0 otherwise
-int compareKeys(KV* kv, const kv_datum* key, len_t offset) {
+int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
     len_t keyLength = 0;
     len_t totalReadBytes = 0;
     int readBytes = 0;
     unsigned char buf[2048];
     unsigned int maxReadBytesInStep = 0;
 
-    if (readAtPosition(kv->fds.fd_kv, getOffsetKV(offset), &keyLength, sizeof(int), kv) == -1)
+    if (readAtPosition(kv->fds.fd_kv, offsetKV, &keyLength, sizeof(int), kv) == -1)
         return -1;
 
     if (keyLength != key->len)
@@ -285,6 +292,8 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offset) {
         readBytes = read_controle(kv->fds.fd_kv, buf, maxReadBytesInStep);
         if (readBytes == -1)
             return -1;
+        printf("length %d key %.*s\n", readBytes, readBytes, buf);
+
         if (memcmp(((unsigned char*)key->ptr) + totalReadBytes, buf, readBytes) != 0)
             return 0;  // part of keys are not equal
         totalReadBytes += (len_t)readBytes;
@@ -294,12 +303,12 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offset) {
 
 // Fills data into val
 // Returns 1 on success and -1 on failure
-int fillValue(KV* database, len_t offset, kv_datum* val, const kv_datum* key) {
+int fillValue(KV* database, len_t offsetKV, kv_datum* val, const kv_datum* key) {
     if (val == NULL || key == NULL) {
         errno = EINVAL;
         return -1;
     }
-    unsigned int posVal = getOffsetKV(offset) + sizeof(len_t) + key->len;
+    unsigned int posVal = offsetKV + sizeof(len_t) + key->len;
     if (readAtPosition(database->fds.fd_kv, posVal, &val->len, sizeof(len_t), database) == -1)
         return -1;
     val->ptr = malloc(val->len);
@@ -332,7 +341,7 @@ int kv_del(KV* kv, const kv_datum* key) {
     if (readNewBlock(blockIndex, kv) == -1)
         return -1;
 
-    offset = lookupKeyOffset(kv, key);
+    offset = lookupKeyOffsetKV(kv, key);
     if (offset == 0 && errno != EINVAL)
         return -1;
     else if (offset == 0) {  // key not contained
@@ -347,9 +356,9 @@ int kv_del(KV* kv, const kv_datum* key) {
 }
 
 // Frees an entry of DKV identified by its offset in KV
-void freeSlotDKV(len_t offset, KV* kv) {
+void freeSlotDKV(len_t offsetKV, KV* kv) {
     for (unsigned int i = 0; i < getSlotsInDKV(kv); i++) {
-        if (access_offset_dkv(i, kv) == offset) {
+        if (access_offset_dkv(i, kv) == offsetKV) {
             int length = (-1) * access_lg_dkv(i, kv);  // multiplies by -1 to tag the slot as free
             memcpy(kv->dkvh.dkv + getOffsetDkv(i), &length, sizeof(int));
             tryMergeSlots(kv, i);
@@ -382,12 +391,12 @@ void mergeSlots(unsigned int left, unsigned int right, KV* database) {
 }
 
 // Frees an entry in blk. Returns 1 on success and -1 on failure
-int freeEntryBLK(int blockIndex, len_t offset, KV* kv, int hash, int previousblock) {
+int freeEntryBLK(int blockIndex, len_t offsetKV, KV* kv, int hash, int previousblock) {
     do {
         unsigned int nbSlots = getNbElementsInBlock(kv->bh.block);
         unsigned int offsetOfLastElementInblock = *(len_t*)(kv->bh.block + getOffsetBlock(nbSlots - 1));
         for (unsigned int i = 0; i < nbSlots; i++) {
-            if (offset == *(len_t*)(kv->bh.block + getOffsetBlock(i))) {  // found element
+            if (offsetKV == *(len_t*)(kv->bh.block + getOffsetBlock(i))) {  // found element
                 // swaps the offset of the element with the one of the last element of the bloc
                 memcpy(kv->bh.block + getOffsetBlock(i), &offsetOfLastElementInblock, sizeof(unsigned int));
                 nbSlots--;
@@ -447,25 +456,25 @@ int kv_next(KV* kv, kv_datum* key, kv_datum* val) {
 
 // Reads the key stored at position offset into key
 // Returns 1 on success and -1 on failure
-int fillsKey(KV* kv, len_t offset, kv_datum* key) {
+int fillsKey(KV* kv, len_t offsetKV, kv_datum* key) {
     if (key == NULL) {  // key must have been allocated
         errno = EINVAL;
         return -1;
     }
 
-    key->len = getKeyLengthFromKV(kv, offset);
+    key->len = getKeyLengthFromKV(kv, offsetKV);
     if (key->len == 0)
         return -1;
     key->ptr = malloc(key->len);
-    if (readAtPosition(kv->fds.fd_kv, getOffsetKV(offset) + sizeof(len_t), key->ptr, key->len, kv) == -1)
+    if (readAtPosition(kv->fds.fd_kv, offsetKV + sizeof(len_t), key->ptr, key->len, kv) == -1)
         return -1;
     return 1;
 }
 
 // Returns size of key or -1 when error
-len_t getKeyLengthFromKV(KV* kv, len_t offset) {
+len_t getKeyLengthFromKV(KV* kv, len_t offsetKV) {
     len_t length;
-    if (readAtPosition(kv->fds.fd_kv, getOffsetKV(offset), &length, sizeof(len_t), kv) == -1)
+    if (readAtPosition(kv->fds.fd_kv, offsetKV, &length, sizeof(len_t), kv) == -1)
         return 0;
     return length;
 }

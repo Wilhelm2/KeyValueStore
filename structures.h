@@ -70,7 +70,7 @@ typedef struct {
     dkvHandler dkvh;
 
     alloc_t allocationMethod;  // FIRST_FIT, WORST_FIT or BEST_FIT
-    int (*hashFunction)(const kv_datum* kdatum);
+    unsigned int (*hashFunction)(const kv_datum* kdatum);
 } KV;
 
 #endif

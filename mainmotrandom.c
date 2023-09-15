@@ -16,6 +16,8 @@ kv_datum makeEntry(unsigned int lenght_max);
 void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau);
 void printDatabase(KV* kv);
 void freeEntryArray(kv_datum* array, unsigned int size);
+bool checkDatabaseContains(KV* database, kv_datum* keys, unsigned int size);
+void printAllKeysWithSameHash(kv_datum* keys, unsigned int size, unsigned int hash, KV* kv);
 
 kv_datum* createEntryArray(unsigned int n, int maximumWordSize) {
     kv_datum* tableau = calloc(n, sizeof(kv_datum));
@@ -68,6 +70,27 @@ void printDatabase(KV* kv) {
     printf("------------------------------\n       FIN DE LA BASE        \n------------------------------\n");
 }
 
+// Checks whether the database contains the keys of the array
+bool checkDatabaseContains(KV* database, kv_datum* keys, unsigned int size) {
+    kv_datum val;
+    for (unsigned int i = 0; i < size; i++) {
+        printf("looks up key length %d key %.*s\n", keys[i].len, keys[i].len, (char*)keys[i].ptr);
+        if (kv_get(database, &keys[i], &val) == 0) {
+            printf("key %d not found\n", i);
+            printAllKeysWithSameHash(keys, size, database->hashFunction(&keys[i]), database);
+            return false;
+        }
+    }
+    return true;
+}
+
+void printAllKeysWithSameHash(kv_datum* keys, unsigned int size, unsigned int hash, KV* kv) {
+    for (unsigned int j = 0; j < size; j++) {
+        if (hash == kv->hashFunction(&keys[j]))
+            printf("key %d length %d key %.*s\n", j, keys[j].len, keys[j].len, (char*)keys[j].ptr);
+    }
+}
+
 // Deletes all keys with a value between i and j
 // Returns -1 if one of the deletes failed
 int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau) {
@@ -111,10 +134,11 @@ int main(int argc, char* argv[]) {
     }
 
     fillsDatabase(nbElementsToInsert, kv, entryArray);
+    printf("all keys are contained in tab %d\n", checkDatabaseContains(kv, entryArray, nbElementsToInsert));
     // printDatabase(kv);
 
-    printf("Now deletes elements from database\n");
-    deleleteKeysInterval(0, nbElementsToInsert / 2, kv, entryArray);
+    // printf("Now deletes elements from database\n");
+    // deleleteKeysInterval(0, nbElementsToInsert / 2, kv, entryArray);
     //    affiche_base(kv);
     if (kv_close(kv) == -1)
         printf("Error while closing the database\n");
