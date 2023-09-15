@@ -1,3 +1,4 @@
+This project implements a key-value store using a hash table and linked lists. 
 
 
 # File organization 
@@ -52,10 +53,32 @@ To look up an entry *i* in a block, the database reads *sizeof(unsigned int)* by
 
 ## File *.kv* 
 
+The file with the extension *.kv* contains the database's data. 
+Its magic number is *3*. 
 
+Its header is composed of the file's magic number:
+| MAGIC_NUMBER_KV |
+|------------------|
 
+The database contains tuples of keys and values. 
+A key/value is composed of a length (unsigned int) and a content of length bytes. Thus, a kv entry looks like:
+| keySize | key | valSize | val |
+|---------|-----|---------|-----|
 
+There is no easy way to look up directly entry *i* of kv, because keys and values can have different lengths. 
+Therefore, we use another file, the *.dkv* file to store that information. 
 
+## File *.dkv*
 
+The file with the extension *.dkv* contains for each entry *i* of the database the offset and length of *i*. 
+Its magic number is *3*. 
 
+Its header is composed of the file's magic number and the number of the database's slots:
+| MAGIC_NUMBER_DKV | nbSlots |
+|------------------|---------|
 
+Slot *i* of the database can be looked up by accessing entry:
+> HEADER_DKV + i\*(2*sizeof(unsigned int))
+It contains the slot's length and offset in *.kv*:
+| size | offset |
+|------|--------|
