@@ -7,14 +7,14 @@ w+ : O_CREAT|O_RDWR
 Returns NULL if doesn't succeed to open the database
 */
 KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t alloc) {
-    KV* kv = malloc(sizeof(struct s_KV));
+    KV* kv = malloc(sizeof(KV));
     len_t nbElementsInDKV;
 
     if (initializeFiles(kv, mode, dbname, hashFunctionIndex) == -1)
         return NULL;
 
     unsigned int hashIndex;
-    if (readAtPosition(kv->fd_h, 1, &hashIndex, sizeof(unsigned int), kv) == -1)
+    if (readAtPosition(kv->fds.fd_h, 1, &hashIndex, sizeof(unsigned int), kv) == -1)
         return NULL;
     kv->hashFunction = selectHashFunction(hashIndex);
     if (kv->hashFunction == NULL) {  // checks whether an hash function is associated to that index
@@ -22,33 +22,34 @@ KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t
         return NULL;
     }
 
-    if (readAtPosition(kv->fd_blk, 1, &kv->nb_blocks, sizeof(unsigned int), kv) == -1)
+    if (readAtPosition(kv->fds.fd_blk, 1, &kv->bh.nb_blocks, sizeof(unsigned int), kv) == -1)
         return NULL;
-    memset(kv->block, 0, BLOCK_SIZE);
+    memset(kv->bh.block, 0, BLOCK_SIZE);
     // reads block 0 so that does not erase it at next call of readNewBlock
-    if (readAtPosition(kv->fd_blk, getOffsetBlk(0), kv->block, BLOCK_SIZE, kv) == -1)
+    if (readAtPosition(kv->fds.fd_blk, getOffsetBlk(0), kv->bh.block, BLOCK_SIZE, kv) == -1)
         return NULL;
-    kv->indexCurrLoadedBlock = 0;
+    kv->bh.indexCurrLoadedBlock = 0;
 
     // adds space for 40 new blocks
-    kv->blockIsOccupied = calloc(kv->nb_blocks + 40, sizeof(bool));
-    kv->blockIsOccupiedSize = 40 + kv->nb_blocks;
+    kv->bh.blockIsOccupied = calloc(kv->bh.nb_blocks + 40, sizeof(bool));
+    kv->bh.blockIsOccupiedSize = 40 + kv->bh.nb_blocks;
     if (readsBlockOccupiedness(kv) == -1) {
         kv_close(kv);
         return NULL;
     }
 
-    if (readAtPosition(kv->fd_dkv, 1, &nbElementsInDKV, sizeof(int), kv) == -1)
+    if (readAtPosition(kv->fds.fd_dkv, 1, &nbElementsInDKV, sizeof(int), kv) == -1)
         return NULL;
     // Adds space for 1000 elements
-    kv->dkv = calloc((nbElementsInDKV + 1000) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, sizeof(char));
-    if (readAtPosition(kv->fd_dkv, 1, kv->dkv,
+    kv->dkvh.dkv =
+        calloc((nbElementsInDKV + 1000) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, sizeof(char));
+    if (readAtPosition(kv->fds.fd_dkv, 1, kv->dkvh.dkv,
                        nbElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, kv) == -1)
         return NULL;
-    kv->maxElementsInDKV = nbElementsInDKV + 1000;
+    kv->dkvh.maxElementsInDKV = nbElementsInDKV + 1000;
 
     kv->allocationMethod = alloc;
-    kv->mode = mode;
+    kv->fds.mode = mode;
     return kv;
 }
 
@@ -59,21 +60,21 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         if (writeMagicNumbers(database) == -1)
             return -1;
         // Writes index of used hashFunction
-        if (write_controle(database->fd_h, &hashFunctionIndex, sizeof(unsigned int)) == -1)
+        if (write_controle(database->fds.fd_h, &hashFunctionIndex, sizeof(unsigned int)) == -1)
             return -1;
         // Sets the number of blocks and slots to 0
         unsigned int j = 0;
-        if (writeAtPosition(database->fd_dkv, 1, &j, 4, database) == -1)
+        if (writeAtPosition(database->fds.fd_dkv, 1, &j, 4, database) == -1)
             return -1;
-        if (writeAtPosition(database->fd_blk, 1, &j, 4, database) == -1)
+        if (writeAtPosition(database->fds.fd_blk, 1, &j, 4, database) == -1)
             return -1;
     }
 
     // Controls that all files have the right magic number
-    if (verifyFileMagicNumber(database->fd_h, 1, database) != 1 ||
-        verifyFileMagicNumber(database->fd_blk, 2, database) != 1 ||
-        verifyFileMagicNumber(database->fd_kv, 3, database) != 1 ||
-        verifyFileMagicNumber(database->fd_dkv, 4, database) != 1) {
+    if (verifyFileMagicNumber(database->fds.fd_h, 1, database) != 1 ||
+        verifyFileMagicNumber(database->fds.fd_blk, 2, database) != 1 ||
+        verifyFileMagicNumber(database->fds.fd_kv, 3, database) != 1 ||
+        verifyFileMagicNumber(database->fds.fd_dkv, 4, database) != 1) {
         closeFileDescriptors(database);
         free(database);
         return -1;
@@ -85,17 +86,17 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
 int readsBlockOccupiedness(KV* kv) {
     int test;
     unsigned char buffblock[BLOCK_SIZE];
-    for (unsigned int i = 0; i < kv->blockIsOccupiedSize; i++) {
-        if ((test = readAtPosition(kv->fd_blk, getOffsetBlk(i + 1), buffblock, BLOCK_SIZE, kv)) == -1)
+    for (unsigned int i = 0; i < kv->bh.blockIsOccupiedSize; i++) {
+        if ((test = readAtPosition(kv->fds.fd_blk, getOffsetBlk(i + 1), buffblock, BLOCK_SIZE, kv)) == -1)
             return -1;
 
         if (test == 0)  // there is no block
-            kv->blockIsOccupied[i] = false;
+            kv->bh.blockIsOccupied[i] = false;
         else {
             if (getNbElementsInBlock(buffblock) == 0)  // No elements in block
-                kv->blockIsOccupied[i] = false;
+                kv->bh.blockIsOccupied[i] = false;
             else
-                kv->blockIsOccupied[i] = true;
+                kv->bh.blockIsOccupied[i] = true;
         }
     }
     return 1;
@@ -136,27 +137,27 @@ int openFiles(KV* database, const char* mode, const char* dbname) {
         databaseExists = 1;  // database exists
     close(tmpfd);
 
-    database->fd_h = tryOpen(database, dbnh, flags, 0666);
+    database->fds.fd_h = tryOpen(database, dbnh, flags, 0666);
     free(dbnh);
-    if (database->fd_h == -1)
+    if (database->fds.fd_h == -1)
         return -1;
 
     char* dbnblk = concat(dbname, ".blk");
-    database->fd_blk = tryOpen(database, dbnblk, flags, 0666);
+    database->fds.fd_blk = tryOpen(database, dbnblk, flags, 0666);
     free(dbnblk);
-    if (database->fd_blk == -1)
+    if (database->fds.fd_blk == -1)
         return -1;
 
     char* dbnkv = concat(dbname, ".kv");
-    database->fd_kv = tryOpen(database, dbnkv, flags, 0666);
+    database->fds.fd_kv = tryOpen(database, dbnkv, flags, 0666);
     free(dbnkv);
-    if (database->fd_kv == -1)
+    if (database->fds.fd_kv == -1)
         return -1;
 
     char* dbndkv = concat(dbname, ".dkv");
-    database->fd_dkv = tryOpen(database, dbndkv, flags, 0666);
+    database->fds.fd_dkv = tryOpen(database, dbndkv, flags, 0666);
     free(dbndkv);
-    if (database->fd_dkv == -1)
+    if (database->fds.fd_dkv == -1)
         return -1;
     return databaseExists;
 }
@@ -164,16 +165,16 @@ int openFiles(KV* database, const char* mode, const char* dbname) {
 // Writes the magic number corresponding to each file
 int writeMagicNumbers(KV* database) {
     unsigned char magicNumber = 1;
-    if (write_controle(database->fd_h, &magicNumber, 1) == -1)
+    if (write_controle(database->fds.fd_h, &magicNumber, 1) == -1)
         return -1;
     magicNumber = 2;
-    if (write_controle(database->fd_blk, &magicNumber, 1) == -1)
+    if (write_controle(database->fds.fd_blk, &magicNumber, 1) == -1)
         return -1;
     magicNumber = 3;
-    if (write_controle(database->fd_kv, &magicNumber, 1) == -1)
+    if (write_controle(database->fds.fd_kv, &magicNumber, 1) == -1)
         return -1;
     magicNumber = 4;
-    if (write_controle(database->fd_dkv, &magicNumber, 1) == -1)
+    if (write_controle(database->fds.fd_dkv, &magicNumber, 1) == -1)
         return -1;
     return 1;
 }

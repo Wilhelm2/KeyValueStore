@@ -79,6 +79,7 @@ Its header is composed of the file's magic number and the number of the database
 
 Slot *i* of the database can be looked up by accessing entry:
 > HEADER_DKV + i\*(2*sizeof(unsigned int))
+
 It contains the slot's length and offset in *.kv*:
 | size | offset |
 |------|--------|

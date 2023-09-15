@@ -39,24 +39,38 @@ typedef enum { FIRST_FIT, WORST_FIT, BEST_FIT } alloc_t;
 
 #define BLOCK_SIZE 4096
 
-struct s_KV {
-    int fd_h;                  // File descriptor of h file
-    int fd_blk;                // File descriptor of blk file
-    int fd_kv;                 // File descriptor of kv file
-    int fd_dkv;                // File descriptor of dkv file
-    alloc_t allocationMethod;  // FIRST_FIT, WORST_FIT or BEST_FIT
-    unsigned char* dkv;        // Holds dkv
-    unsigned int maxElementsInDKV;
+typedef struct {
+    int fd_h;    // File descriptor of h file
+    int fd_blk;  // File descriptor of blk file
+    int fd_kv;   // File descriptor of kv file
+    int fd_dkv;  // File descriptor of dkv file
     const char* mode;
-    unsigned int nextTuple;
-    int (*hashFunction)(const kv_datum* kdatum);
+} fileDescriptors;
+
+typedef struct {
     unsigned char block[BLOCK_SIZE];
     unsigned int indexCurrLoadedBlock;
+    unsigned int blockIsOccupiedSize;
     bool* blockIsOccupied;  // array containing whether blocks are occupied or not. blockIsOccupied[i]=true means that
                             // block i is occupied
-    unsigned int blockIsOccupiedSize;
     unsigned int nb_blocks;
-};
-typedef struct s_KV KV;
+} blockHandler;
+
+typedef struct {
+    unsigned char* dkv;  // Holds dkv
+    unsigned int maxElementsInDKV;
+    unsigned int nextTuple;
+} dkvHandler;
+
+typedef struct {
+    fileDescriptors fds;
+
+    blockHandler bh;
+
+    dkvHandler dkvh;
+
+    alloc_t allocationMethod;  // FIRST_FIT, WORST_FIT or BEST_FIT
+    int (*hashFunction)(const kv_datum* kdatum);
+} KV;
 
 #endif

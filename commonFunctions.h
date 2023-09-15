@@ -1,8 +1,6 @@
 #ifndef COMMON_FUNCTIONS_H
 #define COMMON_FUNCTIONS_H
 
-typedef struct s_KV KV;
-
 #include "structures.h"
 
 char* concat(const char* S1, const char* S2);
@@ -12,6 +10,9 @@ int write_controle(int descripteur, const void* ptr, int nboctets);
 
 int readAtPosition(int fd, unsigned int position, void* dest, unsigned int nbBytes, KV* database);
 int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbBytes, KV* database);
+
+int readNewBlock(unsigned int index, KV* database);
+
 int closeFileDescriptors(KV* database);
 
 // Return offsets
@@ -32,23 +33,23 @@ static inline len_t getOffsetDkv(unsigned int index) {
 }
 
 static inline int getLengthDkv(KV* kv, unsigned int index) {
-    return *((int*)(kv->dkv + getOffsetDkv(index)));
+    return *((int*)(kv->dkvh.dkv + getOffsetDkv(index)));
 }
 
 static inline int getSlotSizeDkv(KV* kv, unsigned int index) {
-    return *((int*)(kv->dkv + getOffsetDkv(index)));  // keeps as int since < 0 means that the slot is not free
+    return *((int*)(kv->dkvh.dkv + getOffsetDkv(index)));  // keeps as int since < 0 means that the slot is not free
 }
 
 static inline int getSlotOffsetDkv(KV* kv, unsigned int index) {
-    return *((int*)(kv->dkv + getOffsetDkv(index) + sizeof(unsigned int)));
+    return *((int*)(kv->dkvh.dkv + getOffsetDkv(index) + sizeof(unsigned int)));
 }
 
 static inline void setSlotSizeDkv(KV* kv, unsigned int index, unsigned int size) {
-    memcpy(kv->dkv + getOffsetDkv(index), &size, sizeof(unsigned int));
+    memcpy(kv->dkvh.dkv + getOffsetDkv(index), &size, sizeof(unsigned int));
 }
 
 static inline void setSlotOffsetDkv(KV* kv, unsigned int index, unsigned int size) {
-    memcpy(kv->dkv + getOffsetDkv(index) + sizeof(unsigned int), &size, sizeof(unsigned int));
+    memcpy(kv->dkvh.dkv + getOffsetDkv(index) + sizeof(unsigned int), &size, sizeof(unsigned int));
 }
 
 static inline len_t getOffsetKV(unsigned int index) {
@@ -56,11 +57,11 @@ static inline len_t getOffsetKV(unsigned int index) {
 }
 
 static inline unsigned int getSlotsInDKV(KV* kv) {
-    return *(int*)(kv->dkv + 1);
+    return *(int*)(kv->dkvh.dkv + 1);
 }
 
 static inline void setSlotsInDKV(KV* kv, unsigned int nbSlots) {
-    memcpy(kv->dkv + 1, &nbSlots, sizeof(unsigned int));
+    memcpy(kv->dkvh.dkv + 1, &nbSlots, sizeof(unsigned int));
 }
 
 static inline unsigned int getNbElementsInBlock(unsigned char* block) {
@@ -84,7 +85,17 @@ static inline unsigned int sizeOfDKVFilled(KV* kv) {
 }
 
 static inline unsigned int sizeOfDKVMax(KV* kv) {
-    return kv->maxElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV;
+    return kv->dkvh.maxElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV;
+}
+
+// Returns legnth of dkv slot
+static inline unsigned int access_lg_dkv(unsigned int emplacement, KV* kv) {
+    return (*(unsigned int*)(kv->dkvh.dkv + LG_EN_TETE_DKV + (sizeof(unsigned int) + sizeof(len_t)) * emplacement));
+}
+// Returns offset of dkv slot in kv
+static inline len_t access_offset_dkv(int emplacement, KV* kv) {
+    unsigned int offset = LG_EN_TETE_DKV + (sizeof(unsigned int) + sizeof(len_t)) * emplacement + sizeof(unsigned int);
+    return (*(int*)(kv->dkvh.dkv + offset));
 }
 
 #endif

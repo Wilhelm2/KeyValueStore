@@ -66,16 +66,28 @@ int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbByt
     return 1;
 }
 
+// Reads a new block by first writing the previous one to the BLK file
+int readNewBlock(unsigned int index, KV* database) {
+    if (writeAtPosition(database->fds.fd_blk, getOffsetBlk(database->bh.indexCurrLoadedBlock), database->bh.block,
+                        BLOCK_SIZE, database) == -1)
+        return -1;
+    memset(database->bh.block, 0, BLOCK_SIZE);
+    database->bh.indexCurrLoadedBlock = index;
+    if (readAtPosition(database->fds.fd_blk, getOffsetBlk(index), database->bh.block, BLOCK_SIZE, database) == -1)
+        return -1;
+    return 1;
+}
+
 // Close either returns 0 when succeeds or -1 when fails. Thus the function will return -1 if one of the closes fail
 int closeFileDescriptors(KV* database) {
     int res = 0;
-    if (database->fd_blk > 0)
-        res |= close(database->fd_blk);
-    if (database->fd_dkv > 0)
-        res |= close(database->fd_dkv);
-    if (database->fd_h > 0)
-        res |= close(database->fd_h);
-    if (database->fd_kv > 0)
-        res |= close(database->fd_kv);
+    if (database->fds.fd_blk > 0)
+        res |= close(database->fds.fd_blk);
+    if (database->fds.fd_dkv > 0)
+        res |= close(database->fds.fd_dkv);
+    if (database->fds.fd_h > 0)
+        res |= close(database->fds.fd_h);
+    if (database->fds.fd_kv > 0)
+        res |= close(database->fds.fd_kv);
     return res;
 }
