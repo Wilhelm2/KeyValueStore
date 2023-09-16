@@ -48,7 +48,7 @@ typedef struct {
 } fileDescriptors;
 
 typedef struct {
-    unsigned char block[BLOCK_SIZE];
+    unsigned char blockBLK[BLOCK_SIZE];
     unsigned int indexCurrLoadedBlock;
     unsigned int blockIsOccupiedSize;
     bool* blockIsOccupied;  // array containing whether blocks are occupied or not. blockIsOccupied[i]=true means that

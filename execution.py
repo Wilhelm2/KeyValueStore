@@ -20,7 +20,7 @@ def doTest(hashFunction, nbAdds):
 # Inserts 50000 keys to the database whose size is between 0 and 10, then deletes 25000 of them 
 # print "First test"
 subprocess.check_call(["bash","-c","make random"])	
-doTest(0,50)
+doTest(0,500)
 # doTest(2,40000)
 # doTest(3,40000)
 

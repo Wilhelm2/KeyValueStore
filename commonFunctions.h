@@ -11,9 +11,17 @@ int write_controle(int descripteur, const void* ptr, int nboctets);
 int readAtPosition(int fd, unsigned int position, void* dest, unsigned int nbBytes, KV* database);
 int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbBytes, KV* database);
 
-int readNewBlock(unsigned int index, KV* database);
+int readNewBlockBLK(unsigned int index, KV* database);
 
 int closeFileDescriptors(KV* database);
+
+int getNbElementsInBlockBLK(unsigned int index, KV* kv);
+int getIndexNextBlockBLK(unsigned int index, KV* kv);
+int setOffsetInBLK(unsigned int offsetKV, unsigned int blockIndex, KV* kv, unsigned int slot);
+int setNbElementsInBlockBLK(unsigned int nbElements, unsigned int blockIndex, KV* kv);
+int getOffsetKVBlockBLK(unsigned int indexInBlock, unsigned int blockIndex, KV* kv);
+bool hasNextBlockBLK(unsigned int blockIndex, KV* kv);
+int getNextBlockBLK(unsigned int blockIndex, KV* kv);
 
 // Return offsets
 static inline len_t getOffsetBlk(unsigned int index) {
@@ -62,22 +70,6 @@ static inline unsigned int getSlotsInDKV(KV* kv) {
 
 static inline void setSlotsInDKV(KV* kv, unsigned int nbSlots) {
     memcpy(kv->dkvh.dkv + 1, &nbSlots, sizeof(unsigned int));
-}
-
-static inline unsigned int getNbElementsInBlock(unsigned char* block) {
-    return *(int*)(block + 5);
-}
-
-static inline void setNbElementsInBlock(unsigned char* block, unsigned int nbElements) {
-    memcpy(block + 5, &nbElements, sizeof(unsigned int));
-}
-
-static inline unsigned int getIndexNextBlock(unsigned char* block) {
-    return *(int*)(block + 1);
-}
-
-static inline unsigned char hasNextBlock(unsigned char* block) {
-    return *(block);
 }
 
 static inline unsigned int sizeOfDKVFilled(KV* kv) {

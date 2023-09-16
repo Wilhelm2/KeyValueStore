@@ -54,7 +54,8 @@ int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
 
     if (writeElementToKV(kv, key, val, access_offset_dkv(dkvSlot, kv)) == -1)  // Writes tuple to KV
         return -1;
-    addsEntryToBLK(kv, access_offset_dkv(dkvSlot, kv));
+    if (addsEntryToBLK(kv, access_offset_dkv(dkvSlot, kv), blockIndex) == -1)
+        return -1;
     return 0;
 }
 
@@ -85,12 +86,14 @@ int getBlockIndexWithFreeEntry(KV* kv, int hash) {
         return 0;
     }
     while (blockIndex >= 0) {
-        // Reads the block to look if it has free slots
-        if (readNewBlock(blockIndex, kv) == -1)
+        int nbElements = getNbElementsInBlockBLK(blockIndex, kv);
+        if (nbElements == -1)
             return -1;
-        if ((getNbElementsInBlock(kv->bh.block) + 1) * sizeof(len_t) < BLOCK_SIZE - LG_EN_TETE_BLOCK)
+        if ((nbElements + 1) * sizeof(len_t) < BLOCK_SIZE - LG_EN_TETE_BLOCK)
             return blockIndex;  // Space for another slot
-        blockIndex = getIndexNextBlock(kv->bh.block);
+        blockIndex = getIndexNextBlockBLK(blockIndex, kv);
+        if (blockIndex == -1)
+            return -1;
     }
     return 0;
 }
@@ -206,11 +209,15 @@ int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t off
 }
 
 // Writes KV offset to BLK
-void addsEntryToBLK(KV* kv, len_t offsetKV) {
-    unsigned int nbSlots = getNbElementsInBlock(kv->bh.block);
-    printf("writes offset to blk %d\n", offsetKV);
-    memcpy(kv->bh.block + getOffsetBlock(nbSlots), &offsetKV, sizeof(len_t));
-    setNbElementsInBlock(kv->bh.block, nbSlots + 1);
+int addsEntryToBLK(KV* kv, len_t offsetKV, unsigned int blockIndex) {
+    int nbSlots = getNbElementsInBlockBLK(blockIndex, kv);
+    if (nbSlots == -1)
+        return -1;
+    if (setOffsetInBLK(offsetKV, blockIndex, kv, nbSlots) == -1)
+        return -1;
+    if (setNbElementsInBlockBLK(nbSlots + 1, blockIndex, kv) == -1)
+        return -1;
+    return 1;
 }
 
 // Lookup the value associated to key
@@ -234,13 +241,9 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
         errno = EINVAL;
         return 0;
     }
-    if (((unsigned int)blockIndex) != kv->bh.indexCurrLoadedBlock) {
-        if (readNewBlock(blockIndex, kv) == -1)
-            return -1;
-    }
 
     // Lookup the key in KV. Returns offset when found
-    offset = lookupKeyOffsetKV(kv, key);
+    offset = lookupKeyOffsetKV(kv, key, blockIndex);
     printf("hash %d blockIndex %d readTest %d offset %d\n", hash, blockIndex, readTest, offset);
     if (offset == 0)
         return 0;
@@ -251,24 +254,25 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
 
 // Lookup the offset of key key
 // Returns offset when found, -1 when error, and 0 when not found
-len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key) {
+len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key, int blockIndex) {
     int test;
-    bool nextBlock;
     do {
-        for (unsigned int i = 0; i < getNbElementsInBlock(kv->bh.block); i++) {
-            test = compareKeys(kv, key, *(int*)(kv->bh.block + getOffsetBlock(i)));
-            printf("checks element %d cmp result %d\n", i, test);
+        for (int i = 0; i < getNbElementsInBlockBLK(blockIndex, kv); i++) {
+            test = compareKeys(kv, key, getOffsetKVBlockBLK(i, blockIndex, kv));
+            printf("checks element %d cmp result %d nbelementsinblock %d\n", i, test,
+                   getNbElementsInBlockBLK(blockIndex, kv));
             if (test == -1)
                 return 0;
             else if (test == 1)
-                return *(int*)(kv->bh.block + getOffsetBlock(i));
+                return getOffsetKVBlockBLK(i, blockIndex, kv);
         }
-        if (hasNextBlock(kv->bh.block)) {
-            nextBlock = hasNextBlock(kv->bh.block);
-            if (readNewBlock(getIndexNextBlock(kv->bh.block), kv) == -1)
+        if (hasNextBlockBLK(blockIndex, kv)) {
+            blockIndex = getNextBlockBLK(blockIndex, kv);
+            if (readNewBlockBLK(getIndexNextBlockBLK(blockIndex, kv), kv) == -1)
                 return 0;
-        }
-    } while (nextBlock);
+        } else
+            blockIndex = -1;
+    } while (blockIndex != -1);
 
     errno = EINVAL;  // Key not found
     return 0;
@@ -338,10 +342,7 @@ int kv_del(KV* kv, const kv_datum* key) {
         return -1;
     }
 
-    if (readNewBlock(blockIndex, kv) == -1)
-        return -1;
-
-    offset = lookupKeyOffsetKV(kv, key);
+    offset = lookupKeyOffsetKV(kv, key, blockIndex);
     if (offset == 0 && errno != EINVAL)
         return -1;
     else if (offset == 0) {  // key not contained
@@ -391,19 +392,23 @@ void mergeSlots(unsigned int left, unsigned int right, KV* database) {
 }
 
 // Frees an entry in blk. Returns 1 on success and -1 on failure
-int freeEntryBLK(int blockIndex, len_t offsetKV, KV* kv, int hash, int previousblock) {
+int freeEntryBLK(int blockIndex, int offsetKV, KV* kv, int hash, int previousblock) {
     do {
-        unsigned int nbSlots = getNbElementsInBlock(kv->bh.block);
-        unsigned int offsetOfLastElementInblock = *(len_t*)(kv->bh.block + getOffsetBlock(nbSlots - 1));
-        for (unsigned int i = 0; i < nbSlots; i++) {
-            if (offsetKV == *(len_t*)(kv->bh.block + getOffsetBlock(i))) {  // found element
+        int nbSlots = getNbElementsInBlockBLK(blockIndex, kv);
+        if (nbSlots == -1)
+            return -1;
+        int offsetOfLastElementInblock = getOffsetKVBlockBLK(nbSlots - 1, blockIndex, kv);
+        if (offsetOfLastElementInblock == -1)
+            return -1;
+        for (int i = 0; i < nbSlots; i++) {
+            if (offsetKV == getOffsetKVBlockBLK(i, blockIndex, kv)) {  // found element
                 // swaps the offset of the element with the one of the last element of the bloc
-                memcpy(kv->bh.block + getOffsetBlock(i), &offsetOfLastElementInblock, sizeof(unsigned int));
+                setOffsetInBLK(offsetOfLastElementInblock, blockIndex, kv, i);
                 nbSlots--;
-                setNbElementsInBlock(kv->bh.block, nbSlots);
+                setNbElementsInBlockBLK(nbSlots, blockIndex, kv);
 
                 if (nbSlots == 0 && previousblock == 0 &&
-                    hasNextBlock(kv->bh.block) == false) {  // frees the blockentry
+                    hasNextBlockBLK(blockIndex, kv) == false) {  // frees the blockentry
                     if (freeHashtableEntry(kv, hash) == -1)
                         return -1;
                     kv->bh.blockIsOccupied[blockIndex] = false;  // marks the blockas free
@@ -414,8 +419,8 @@ int freeEntryBLK(int blockIndex, len_t offsetKV, KV* kv, int hash, int previousb
         }
         // entry not found
         previousblock = blockIndex;
-        blockIndex = getIndexNextBlock(kv->bh.block);  // index of next block
-        if (readNewBlock(blockIndex, kv) == -1)
+        blockIndex = getIndexNextBlockBLK(blockIndex, kv);  // index of next block
+        if (readNewBlockBLK(blockIndex, kv) == -1)
             return 0;
     } while (true);
     return 1;

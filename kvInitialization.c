@@ -24,9 +24,9 @@ KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t
 
     if (readAtPosition(kv->fds.fd_blk, 1, &kv->bh.nb_blocks, sizeof(unsigned int), kv) == -1)
         return NULL;
-    memset(kv->bh.block, 0, BLOCK_SIZE);
+    memset(kv->bh.blockBLK, 0, BLOCK_SIZE);
     // reads block 0 so that does not erase it at next call of readNewBlock
-    if (readAtPosition(kv->fds.fd_blk, getOffsetBlk(0), kv->bh.block, BLOCK_SIZE, kv) == -1)
+    if (readAtPosition(kv->fds.fd_blk, getOffsetBlk(0), kv->bh.blockBLK, BLOCK_SIZE, kv) == -1)
         return NULL;
     kv->bh.indexCurrLoadedBlock = 0;
 
@@ -93,7 +93,7 @@ int readsBlockOccupiedness(KV* kv) {
         if (test == 0)  // there is no block
             kv->bh.blockIsOccupied[i] = false;
         else {
-            if (getNbElementsInBlock(buffblock) == 0)  // No elements in block
+            if (getNbElementsInBlockBLK(i, kv) == 0)  // No elements in block
                 kv->bh.blockIsOccupied[i] = false;
             else
                 kv->bh.blockIsOccupied[i] = true;

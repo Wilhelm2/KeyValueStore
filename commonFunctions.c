@@ -67,13 +67,15 @@ int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbByt
 }
 
 // Reads a new block by first writing the previous one to the BLK file
-int readNewBlock(unsigned int index, KV* database) {
-    if (writeAtPosition(database->fds.fd_blk, getOffsetBlk(database->bh.indexCurrLoadedBlock), database->bh.block,
+int readNewBlockBLK(unsigned int index, KV* database) {
+    if (index == database->bh.indexCurrLoadedBlock)
+        return 1;
+    if (writeAtPosition(database->fds.fd_blk, getOffsetBlk(database->bh.indexCurrLoadedBlock), database->bh.blockBLK,
                         BLOCK_SIZE, database) == -1)
         return -1;
-    memset(database->bh.block, 0, BLOCK_SIZE);
+    memset(database->bh.blockBLK, 0, BLOCK_SIZE);
     database->bh.indexCurrLoadedBlock = index;
-    if (readAtPosition(database->fds.fd_blk, getOffsetBlk(index), database->bh.block, BLOCK_SIZE, database) == -1)
+    if (readAtPosition(database->fds.fd_blk, getOffsetBlk(index), database->bh.blockBLK, BLOCK_SIZE, database) == -1)
         return -1;
     return 1;
 }
@@ -90,4 +92,62 @@ int closeFileDescriptors(KV* database) {
     if (database->fds.fd_kv > 0)
         res |= close(database->fds.fd_kv);
     return res;
+}
+
+int getNbElementsInBlockBLK(unsigned int index, KV* kv) {
+    if (index != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(index, kv) == -1)
+            return -1;
+    }
+    return *(int*)(kv->bh.blockBLK + 5);
+}
+
+int getIndexNextBlockBLK(unsigned int index, KV* kv) {
+    if (index != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(index, kv) == -1)
+            return -1;
+    }
+    return *(int*)(kv->bh.blockBLK + 1);
+}
+
+int setOffsetInBLK(unsigned int offsetKV, unsigned int blockIndex, KV* kv, unsigned int slot) {
+    if (blockIndex != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(blockIndex, kv) == -1)
+            return -1;
+    }
+    memcpy(kv->bh.blockBLK + getOffsetBlock(slot), &offsetKV, sizeof(len_t));
+    return 1;
+}
+
+int setNbElementsInBlockBLK(unsigned int nbElements, unsigned int blockIndex, KV* kv) {
+    if (blockIndex != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(blockIndex, kv) == -1)
+            return -1;
+    }
+    memcpy(kv->bh.blockBLK + 5, &nbElements, sizeof(unsigned int));
+    return 1;
+}
+
+int getOffsetKVBlockBLK(unsigned int indexInBlock, unsigned int blockIndex, KV* kv) {
+    if (blockIndex != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(blockIndex, kv) == -1)
+            return -1;
+    }
+    return *(int*)(kv->bh.blockBLK + getOffsetBlock(indexInBlock));
+}
+
+bool hasNextBlockBLK(unsigned int blockIndex, KV* kv) {
+    if (blockIndex != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(blockIndex, kv) == -1)
+            return false;
+    }
+    return *(kv->bh.blockBLK) > 0;
+}
+
+int getNextBlockBLK(unsigned int blockIndex, KV* kv) {
+    if (blockIndex != kv->bh.indexCurrLoadedBlock) {
+        if (readNewBlockBLK(blockIndex, kv) == -1)
+            return -1;
+    }
+    return *(kv->bh.blockBLK);
 }

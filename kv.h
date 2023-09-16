@@ -21,10 +21,10 @@ void SetSlotDKVAsOccupied(KV* kv, int dkvSlot);
 void trySplitDKVSlot(KV* kv, unsigned int slotToSplit, unsigned int slotToSplitRequiredLength);
 void insertNewSlotDKV(KV* kv, int firstSlot);
 int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offsetKV);
-void addsEntryToBLK(KV* kv, len_t emplacement_kv);
+int addsEntryToBLK(KV* kv, len_t offsetKV, unsigned int blockIndex);
 
 int kv_get(KV* kv, const kv_datum* key, kv_datum* val);
-len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key);
+len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key, int blockIndex);
 int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV);
 int fillValue(KV* kv, len_t offsetKV, kv_datum* val, const kv_datum* key);
 
@@ -32,7 +32,7 @@ int kv_del(KV* kv, const kv_datum* key);
 void freeSlotDKV(len_t offsetKV, KV* kv);
 void tryMergeSlots(KV* database, unsigned int centralSlot);
 void mergeSlots(unsigned int left, unsigned int right, KV* database);
-int freeEntryBLK(int blockIndex, len_t offset, KV* kv, int hash, int previousBloc);
+int freeEntryBLK(int blockIndex, int offset, KV* kv, int hash, int previousBloc);
 int freeHashtableEntry(KV* kv, int hash);
 
 void kv_start(KV* kv);
