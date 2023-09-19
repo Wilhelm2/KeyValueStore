@@ -40,7 +40,7 @@ static inline len_t getOffsetDkv(unsigned int index) {
     return LG_EN_TETE_DKV + index * 2 * sizeof(unsigned int);
 }
 
-static inline int getLengthDkv(KV* kv, unsigned int index) {
+static inline int getLengthDkv(KV* kv, unsigned int index) {  // signed int because *-1 to tag slot as taken!
     return *((int*)(kv->dkvh.dkv + getOffsetDkv(index)));
 }
 
@@ -48,7 +48,7 @@ static inline int getSlotSizeDkv(KV* kv, unsigned int index) {
     return *((int*)(kv->dkvh.dkv + getOffsetDkv(index)));  // keeps as int since < 0 means that the slot is not free
 }
 
-static inline int getSlotOffsetDkv(KV* kv, unsigned int index) {
+static inline unsigned int getSlotOffsetDkv(KV* kv, unsigned int index) {
     return *((int*)(kv->dkvh.dkv + getOffsetDkv(index) + sizeof(unsigned int)));
 }
 
@@ -78,16 +78,6 @@ static inline unsigned int sizeOfDKVFilled(KV* kv) {
 
 static inline unsigned int sizeOfDKVMax(KV* kv) {
     return kv->dkvh.maxElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV;
-}
-
-// Returns legnth of dkv slot
-static inline unsigned int access_lg_dkv(unsigned int emplacement, KV* kv) {
-    return (*(unsigned int*)(kv->dkvh.dkv + LG_EN_TETE_DKV + (sizeof(unsigned int) + sizeof(len_t)) * emplacement));
-}
-// Returns offset of dkv slot in kv
-static inline len_t access_offset_dkv(int emplacement, KV* kv) {
-    unsigned int offset = LG_EN_TETE_DKV + (sizeof(unsigned int) + sizeof(len_t)) * emplacement + sizeof(unsigned int);
-    return (*(int*)(kv->dkvh.dkv + offset));
 }
 
 #endif

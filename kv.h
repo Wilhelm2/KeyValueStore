@@ -43,4 +43,5 @@ len_t getKeyLengthFromKV(KV* kv, len_t offsetKV);
 
 int truncate_kv(KV* kv);
 
+void verifyEntriesDKV(KV* database);
 #endif

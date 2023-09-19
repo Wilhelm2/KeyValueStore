@@ -2,6 +2,7 @@
 #define HASHFUNCTIONS_H
 
 #include "structures.h"
+#define HASH_TABLE_SIZE 20000
 
 unsigned int (*selectHashFunction(unsigned int index))(const kv_datum* key);
 unsigned int defaultHash(const kv_datum* key);

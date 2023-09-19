@@ -52,17 +52,19 @@ int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
 
     unsigned int dkvSlot = allocatesDkvSlot(kv, key, val);  // Updates DKV
 
-    if (writeElementToKV(kv, key, val, access_offset_dkv(dkvSlot, kv)) == -1)  // Writes tuple to KV
+    if (writeElementToKV(kv, key, val, getSlotOffsetDkv(kv, dkvSlot)) == -1)  // Writes tuple to KV
         return -1;
-    if (addsEntryToBLK(kv, access_offset_dkv(dkvSlot, kv), blockIndex) == -1)
+    if (addsEntryToBLK(kv, getSlotOffsetDkv(kv, dkvSlot), blockIndex) == -1)
         return -1;
+    printf("adds element to blk blockindex %d dkvslot %d offset %d\n", blockIndex, dkvSlot,
+           getSlotOffsetDkv(kv, dkvSlot));
     return 0;
 }
 
 int getBlockIndexForHash(unsigned int hash, KV* kv) {
     int blockIndex;
-    // First looks the block up. The function returns 0 when the hash is associated to no block
-    if ((blockIndex = getBlockIndexWithFreeEntry(kv, hash)) == 0) {
+    // First looks the block up. Returns -1 when the hash is associated to no block with errno set to EINVAL
+    if ((blockIndex = getBlockIndexWithFreeEntry(kv, hash)) == -1 && errno == EINVAL) {
         // Allocate a block to the hash value
         blockIndex = AllocatesNewBlock(kv);
         if (blockIndex == -1)
@@ -78,24 +80,31 @@ int getBlockIndexForHash(unsigned int hash, KV* kv) {
 int getBlockIndexWithFreeEntry(KV* kv, int hash) {
     int test;
     int blockIndex;
+    bool hasNextBlock;
 
     // Reads the block index contained at the hash position
     if ((test = readAtPosition(kv->fds.fd_h, getOffsetH(hash), &blockIndex, sizeof(int), kv)) == -1)
         return -1;
     if (test == 0 || blockIndex == -1) {  // either read 0 bytes or has no registered block
-        return 0;
+        errno = EINVAL;
+        return -1;
     }
-    while (blockIndex >= 0) {
+    printf("read blockindex %d elements in blk %d test %d hash %d\n", blockIndex,
+           getNbElementsInBlockBLK(blockIndex, kv), test, hash);
+    do {
         int nbElements = getNbElementsInBlockBLK(blockIndex, kv);
         if (nbElements == -1)
             return -1;
         if ((nbElements + 1) * sizeof(len_t) < BLOCK_SIZE - LG_EN_TETE_BLOCK)
             return blockIndex;  // Space for another slot
+        hasNextBlock = hasNextBlockBLK(blockIndex, kv);
         blockIndex = getIndexNextBlockBLK(blockIndex, kv);
         if (blockIndex == -1)
             return -1;
-    }
-    return 0;
+    } while (hasNextBlock);
+
+    errno = EINVAL;
+    return -1;
 }
 
 // Returns the index of first empty block. Assumes that an empty block exists
@@ -142,7 +151,7 @@ int allocatesDkvSlot(KV* database, const kv_datum* key, const kv_datum* val) {
 // Creates new slot at the end of DKV
 void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val) {
     len_t offsetNewSlot;
-
+    printf("allocates new slot at end of dkv\n");
     if (getSlotsInDKV(kv) == kv->dkvh.maxElementsInDKV)
         increaseSizeDkv(kv);
 
@@ -151,9 +160,17 @@ void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val) {
     if (getSlotsInDKV(kv) == 0)
         offsetNewSlot = LG_EN_TETE_KV;
     else
-        offsetNewSlot = access_offset_dkv(getSlotsInDKV(kv) - 1, kv) + abs(access_lg_dkv(getSlotsInDKV(kv) - 1, kv));
+        offsetNewSlot = getSlotOffsetDkv(kv, getSlotsInDKV(kv) - 1) + abs(getSlotSizeDkv(kv, getSlotsInDKV(kv) - 1));
     memcpy(kv->dkvh.dkv + getOffsetDkv(getSlotsInDKV(kv)) + sizeof(len_t), &offsetNewSlot, sizeof(len_t));
+    printf("writes length %d of new slot at offset %d\n", lengthNewSlot, getOffsetDkv(getSlotsInDKV(kv)));
+    printf("writes offset %d of new slot at offset %d\n", offsetNewSlot, getSlotOffsetDkv(kv, getSlotsInDKV(kv)));
+    printf("writes offset %d of new slot at dkvoffset %d\n", offsetNewSlot, getOffsetDkv(getSlotsInDKV(kv)));
+    if (getSlotsInDKV(kv) > 0) {
+        printf("previous slot offset %d length %d\n", getSlotOffsetDkv(kv, getSlotsInDKV(kv) - 1),
+               abs(getSlotSizeDkv(kv, getSlotsInDKV(kv) - 1)));
+    }
     setSlotsInDKV(kv, getSlotsInDKV(kv) + 1);
+    printf("incr nbslots to %d in createnewslotendkv\n", getSlotsInDKV(kv));
 }
 
 // Increases the size of dkv
@@ -164,19 +181,20 @@ void increaseSizeDkv(KV* database) {
 
 // Sets DKV slot as occupied by multiplying its length by -1
 void SetSlotDKVAsOccupied(KV* kv, int dkvSlot) {
-    int length = access_lg_dkv(dkvSlot, kv) * (-1);
+    int length = getSlotSizeDkv(kv, dkvSlot) * (-1);
     memcpy(kv->dkvh.dkv + getOffsetDkv(dkvSlot), &length, sizeof(int));
 }
 
 // Splits the DKV slot in two if there is enough space to contain another slot
 void trySplitDKVSlot(KV* kv, unsigned int slotToSplit, unsigned int slotToSplitRequiredLength) {
-    len_t remainingBytes = (-1) * access_lg_dkv(slotToSplit, kv) - slotToSplitRequiredLength;
+    len_t remainingBytes = (-1) * getSlotSizeDkv(kv, slotToSplit) - slotToSplitRequiredLength;
     if (remainingBytes > (2 * sizeof(unsigned int) + 2)) {
+        printf("splits the slot %d\n", slotToSplit);
         // Size for another slot of at least one character for key and value
         insertNewSlotDKV(kv, slotToSplit);
+        setSlotSizeDkv(kv, slotToSplit, slotToSplitRequiredLength * (-1));  //*-1 to indicate that slot is taken
         setSlotSizeDkv(kv, slotToSplit + 1, remainingBytes);
         setSlotOffsetDkv(kv, slotToSplit + 1, getSlotOffsetDkv(kv, slotToSplit) + slotToSplitRequiredLength);
-        setSlotSizeDkv(kv, slotToSplit, slotToSplitRequiredLength * (-1));  //*-1 to indicate that slot is taken
     }
 }
 
@@ -185,9 +203,10 @@ void insertNewSlotDKV(KV* database, int firstSlot) {
     if (getSlotsInDKV(database) == database->dkvh.maxElementsInDKV)  // adds space to dkv
         increaseSizeDkv(database);
 
-    memcpy(database->dkvh.dkv + getOffsetDkv(firstSlot), database->dkvh.dkv + getOffsetDkv(firstSlot + 1),
-           sizeOfDKVFilled(database) - getOffsetDkv(firstSlot + 1));
+    memcpy(database->dkvh.dkv + getOffsetDkv(firstSlot + 1), database->dkvh.dkv + getOffsetDkv(firstSlot),
+           sizeOfDKVFilled(database) - getOffsetDkv(firstSlot));
     setSlotsInDKV(database, getSlotsInDKV(database) + 1);
+    printf("incr nbslots to %d in insertnewslotdkv\n", getSlotsInDKV(database));
 }
 
 int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offsetKV) {
@@ -200,6 +219,7 @@ int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t off
     // Writes value length + value
     memcpy(tabwrite + sizeof(len_t) + key->len, &val->len, sizeof(len_t));
     memcpy(tabwrite + sizeof(len_t) + key->len + sizeof(len_t), val->ptr, val->len);
+    printf("write key length %d key %.*s offset %d\n", key->len, key->len, (char*)key->ptr, offsetKV);
 
     if (writeAtPosition(kv->fds.fd_kv, offsetKV, tabwrite, nbBytesToWrite, kv) == -1)
         return -1;
@@ -226,7 +246,7 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     unsigned int hash = kv->hashFunction(key);
     int blockIndex, readTest;
     int offset;
-    if (key == NULL || key->ptr == NULL || val == NULL) {
+    if (key == NULL || key->ptr == NULL || val == NULL || key->len < 1) {
         errno = EINVAL;
         return -1;
     }
@@ -259,8 +279,8 @@ len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key, int blockIndex) {
     do {
         for (int i = 0; i < getNbElementsInBlockBLK(blockIndex, kv); i++) {
             test = compareKeys(kv, key, getOffsetKVBlockBLK(i, blockIndex, kv));
-            printf("checks element %d cmp result %d nbelementsinblock %d\n", i, test,
-                   getNbElementsInBlockBLK(blockIndex, kv));
+            // printf("checks element %d cmp result %d nbelementsinblock %d\n", i, test,
+            //        getNbElementsInBlockBLK(blockIndex, kv));
             if (test == -1)
                 return 0;
             else if (test == 1)
@@ -288,6 +308,7 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
 
     if (readAtPosition(kv->fds.fd_kv, offsetKV, &keyLength, sizeof(int), kv) == -1)
         return -1;
+    //    printf("key->len %d keyLength %d offset %d\n", key->len, keyLength, offsetKV);
 
     if (keyLength != key->len)
         return 0;
@@ -296,7 +317,7 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
         readBytes = read_controle(kv->fds.fd_kv, buf, maxReadBytesInStep);
         if (readBytes == -1)
             return -1;
-        printf("length %d key %.*s\n", readBytes, readBytes, buf);
+        //      printf("length %d key %.*s offset %d\n", readBytes, readBytes, buf, offsetKV);
 
         if (memcmp(((unsigned char*)key->ptr) + totalReadBytes, buf, readBytes) != 0)
             return 0;  // part of keys are not equal
@@ -349,7 +370,6 @@ int kv_del(KV* kv, const kv_datum* key) {
         errno = ENOENT;
         return -1;
     }
-
     freeSlotDKV(offset, kv);
     if (freeEntryBLK(blockIndex, offset, kv, hash, 0) == -1)
         return -1;
@@ -359,8 +379,9 @@ int kv_del(KV* kv, const kv_datum* key) {
 // Frees an entry of DKV identified by its offset in KV
 void freeSlotDKV(len_t offsetKV, KV* kv) {
     for (unsigned int i = 0; i < getSlotsInDKV(kv); i++) {
-        if (access_offset_dkv(i, kv) == offsetKV) {
-            int length = (-1) * access_lg_dkv(i, kv);  // multiplies by -1 to tag the slot as free
+        if (getSlotOffsetDkv(kv, i) == offsetKV) {
+            int length = (-1) * getSlotSizeDkv(kv, i);  // multiplies by -1 to tag the slot as free
+            printf("frees the dkv slot %d offset %d length %d\n", i, getOffsetDkv(i), length);
             memcpy(kv->dkvh.dkv + getOffsetDkv(i), &length, sizeof(int));
             tryMergeSlots(kv, i);
             if (i == (getSlotsInDKV(kv) - 1))  // the newly freed slot is the last one of DKV
@@ -372,22 +393,27 @@ void freeSlotDKV(len_t offsetKV, KV* kv) {
 
 void tryMergeSlots(KV* database, unsigned int centralSlot) {
     if (centralSlot > 0) {
-        if (access_lg_dkv(centralSlot - 1, database) > 0) {  // free slot -> merge
+        if (getSlotSizeDkv(database, centralSlot - 1) > 0) {  // free slot -> merge
             mergeSlots(centralSlot - 1, centralSlot, database);
             centralSlot--;  // since just removed the left slot
         }
     }
     if (centralSlot < getSlotsInDKV(database) - 1) {
-        if (access_lg_dkv(centralSlot + 1, database) > 0)  // free slot -> merge
+        if (getSlotSizeDkv(database, centralSlot + 1) > 0)  // free slot -> merge
             mergeSlots(centralSlot, centralSlot + 1, database);
     }
 }
 
 void mergeSlots(unsigned int left, unsigned int right, KV* database) {
-    len_t newSize = access_lg_dkv(left, database) + access_lg_dkv(right, database);
+    printf("merge slots %d and %d", left, right);
+    printf("offset %d and %d\n", getSlotOffsetDkv(database, left), getSlotOffsetDkv(database, right));
+    printf("length %d and %d\n", getSlotSizeDkv(database, left), getSlotSizeDkv(database, right));
+    len_t newSize = getSlotSizeDkv(database, left) + getSlotSizeDkv(database, right);
+    len_t offset = getSlotOffsetDkv(database, left);
     memcpy(database->dkvh.dkv + getOffsetDkv(left), database->dkvh.dkv + getOffsetDkv(right),
            sizeOfDKVFilled(database) - getOffsetDkv(right));
     memcpy(database->dkvh.dkv + getOffsetDkv(left), &newSize, sizeof(len_t));
+    memcpy(database->dkvh.dkv + getOffsetDkv(left) + sizeof(int), &offset, sizeof(len_t));
     setSlotsInDKV(database, getSlotsInDKV(database) - 1);
 }
 
@@ -450,7 +476,7 @@ int kv_next(KV* kv, kv_datum* key, kv_datum* val) {
     if (getSlotsInDKV(kv) == kv->dkvh.nextTuple)
         return 0;
 
-    len_t tupleOffset = access_offset_dkv(kv->dkvh.nextTuple, kv);
+    len_t tupleOffset = getSlotOffsetDkv(kv, kv->dkvh.nextTuple);
     if (fillsKey(kv, tupleOffset, key) == -1)
         return -1;
     if (fillValue(kv, tupleOffset, val, key) == -1)
@@ -492,12 +518,40 @@ int truncate_kv(KV* kv) {
     len_t maxLength = 0;
     unsigned int nbElementsInDKV = getSlotsInDKV(kv);
     for (unsigned int i = 0; i < nbElementsInDKV; i++) {
-        if (maxOffset <= access_offset_dkv(i, kv)) {
-            maxOffset = access_offset_dkv(i, kv);
-            maxLength = abs(access_lg_dkv(i, kv));
+        if (maxOffset <= getSlotOffsetDkv(kv, i)) {
+            maxOffset = getSlotOffsetDkv(kv, i);
+            maxLength = abs(getSlotSizeDkv(kv, i));
         }
     }
     if (ftruncate(kv->fds.fd_kv, maxOffset + maxLength + LG_EN_TETE_KV) == -1)
         return -1;
     return 1;
+}
+
+void verifyEntriesDKV(KV* database) {
+    bool error = false;
+    for (unsigned int i = 0; i < getSlotsInDKV(database); i++) {
+        //        printf("slot %d offset %d length %d", i, getSlotOffsetDkv(database, i), getSlotSizeDkv(database, i));
+        if (i > 0) {
+            //  printf("no lost space %d", (getSlotOffsetDkv(database, i) - (getSlotOffsetDkv(database, i - 1) +
+            //                                                             abs(getSlotSizeDkv(database, i - 1)))) == 0);
+            if (!(getSlotOffsetDkv(database, i) -
+                  (getSlotOffsetDkv(database, i - 1) + abs(getSlotSizeDkv(database, i - 1)))) == 0) {
+                printf("error at entry %d\n", i);
+                printf("\noffsets %d %d lengths %d %d", getSlotOffsetDkv(database, i - 1),
+                       getSlotOffsetDkv(database, i), getSlotSizeDkv(database, i - 1), getSlotSizeDkv(database, i));
+                printf("\n");
+                kv_datum key;
+                fillsKey(database, getSlotOffsetDkv(database, i), &key);
+                printf(" key length %d key %.*s offset %d\n", key.len, key.len, (char*)key.ptr,
+                       getSlotOffsetDkv(database, i));
+                error = true;
+            }
+            // printf("\n");
+        }
+    }
+    if (error)
+        printf("ERROR IN DKV\n");
+    else
+        printf("NO ERROR DETECTED IN DKV\n");
 }

@@ -28,21 +28,21 @@ kv_datum* createEntryArray(unsigned int n, int maximumWordSize) {
 
 kv_datum makeEntry(unsigned int length_max) {
     kv_datum kv;
-    kv.len = rand() % (length_max + 1);
-    kv.ptr = malloc(length_max + 1);
-    char letter;
-    for (unsigned int i = 0; i < length_max; i++) {
-        letter = 'a' + (rand() % 27);
-        memcpy(((char*)kv.ptr) + i, &letter, 1);
+    kv.len = rand() % length_max + 1;
+    kv.ptr = malloc(kv.len + 1);  // +1 for '\0'
+    for (unsigned int i = 0; i < kv.len; i++) {
+        ((char*)kv.ptr)[i] = 'a' + (rand() % 27);
     }
-    letter = '\0';
-    memcpy(((char*)kv.ptr) + length_max, &letter, 1);
+    ((char*)kv.ptr)[kv.len] = '\0';
+
     return kv;
 }
 
 // Inserts elements in table with key going from 0 to i-1 and values going from 1 to i
 void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau) {
     for (unsigned int i = 0; i < n; i++) {
+        printf("\t\t writes key %d length %d key %.*s\n", i, tableau[i].len, tableau[i].len, (char*)tableau[i].ptr);
+
         //        printf("inserts element %d\n", i);
         kv_put(kv, &tableau[i], &tableau[(i + 1) % n]);
     }
@@ -135,6 +135,7 @@ int main(int argc, char* argv[]) {
 
     fillsDatabase(nbElementsToInsert, kv, entryArray);
     printf("all keys are contained in tab %d\n", checkDatabaseContains(kv, entryArray, nbElementsToInsert));
+    verifyEntriesDKV(kv);
     // printDatabase(kv);
 
     // printf("Now deletes elements from database\n");

@@ -19,7 +19,7 @@ unsigned int defaultHash(const kv_datum* key) {
     unsigned char* ptrkey = key->ptr;
     unsigned int s = 0;
     for (unsigned int i = 0; i < key->len; i++) {
-        s += ptrkey[i] % 999983;
+        s += ptrkey[i] % HASH_TABLE_SIZE;
     }
     return (s);
 }
@@ -36,7 +36,7 @@ unsigned int djbHash(const kv_datum* key) {
     for (unsigned int i = 0; i < key->len; i++) {
         hash = 33 * hash ^ ptrkey[i];
     }
-    return hash % 999983;
+    return hash % HASH_TABLE_SIZE;
 }
 
 // FNV_hash
@@ -46,5 +46,5 @@ unsigned int fnvHash(const kv_datum* key) {
     for (unsigned int i = 0; i < key->len; i++) {
         h = (h * 16777619) ^ ptrkey[i];
     }
-    return h % 999983;
+    return h % HASH_TABLE_SIZE;
 }

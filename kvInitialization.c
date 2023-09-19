@@ -10,8 +10,10 @@ KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t
     KV* kv = malloc(sizeof(KV));
     len_t nbElementsInDKV;
 
+    printf("avant init\n");
     if (initializeFiles(kv, mode, dbname, hashFunctionIndex) == -1)
         return NULL;
+    printf("pass init\n");
 
     unsigned int hashIndex;
     if (readAtPosition(kv->fds.fd_h, 1, &hashIndex, sizeof(unsigned int), kv) == -1)
@@ -43,7 +45,7 @@ KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t
     // Adds space for 1000 elements
     kv->dkvh.dkv =
         calloc((nbElementsInDKV + 1000) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, sizeof(char));
-    if (readAtPosition(kv->fds.fd_dkv, 1, kv->dkvh.dkv,
+    if (readAtPosition(kv->fds.fd_dkv, 0, kv->dkvh.dkv,
                        nbElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, kv) == -1)
         return NULL;
     kv->dkvh.maxElementsInDKV = nbElementsInDKV + 1000;
@@ -60,8 +62,14 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         if (writeMagicNumbers(database) == -1)
             return -1;
         // Writes index of used hashFunction
-        if (write_controle(database->fds.fd_h, &hashFunctionIndex, sizeof(unsigned int)) == -1)
+        if (writeAtPosition(database->fds.fd_h, 1, &hashFunctionIndex, sizeof(unsigned int), database) == -1)
             return -1;
+        char tmp[HASH_TABLE_SIZE];
+        memset(tmp, -1, HASH_TABLE_SIZE);
+        // Required because otherwise will read blockIndex = 0 when there is no blockIndex written
+        if (writeAtPosition(database->fds.fd_h, LG_EN_TETE_H, tmp, HASH_TABLE_SIZE, database) == -1)
+            return -1;
+
         // Sets the number of blocks and slots to 0
         unsigned int j = 0;
         if (writeAtPosition(database->fds.fd_dkv, 1, &j, 4, database) == -1)
@@ -79,6 +87,7 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         free(database);
         return -1;
     }
+    printf("database exists \n");
     return databaseExists;
 }
 
@@ -165,16 +174,16 @@ int openFiles(KV* database, const char* mode, const char* dbname) {
 // Writes the magic number corresponding to each file
 int writeMagicNumbers(KV* database) {
     unsigned char magicNumber = 1;
-    if (write_controle(database->fds.fd_h, &magicNumber, 1) == -1)
+    if (writeAtPosition(database->fds.fd_h, 0, &magicNumber, 1, database) == -1)
         return -1;
     magicNumber = 2;
-    if (write_controle(database->fds.fd_blk, &magicNumber, 1) == -1)
+    if (writeAtPosition(database->fds.fd_blk, 0, &magicNumber, 1, database) == -1)
         return -1;
     magicNumber = 3;
-    if (write_controle(database->fds.fd_kv, &magicNumber, 1) == -1)
+    if (writeAtPosition(database->fds.fd_kv, 0, &magicNumber, 1, database) == -1)
         return -1;
     magicNumber = 4;
-    if (write_controle(database->fds.fd_dkv, &magicNumber, 1) == -1)
+    if (writeAtPosition(database->fds.fd_dkv, 0, &magicNumber, 1, database) == -1)
         return -1;
     return 1;
 }
@@ -182,8 +191,10 @@ int writeMagicNumbers(KV* database) {
 // Verifies that the file contain the right magic number
 int verifyFileMagicNumber(int descr, unsigned char magicNumber, KV* database) {
     unsigned char storedMagicNumber;
+    printf("verifies magic number %d\n", magicNumber);
     if (readAtPosition(descr, 0, &storedMagicNumber, 1, database) == -1)
         return -1;
+    printf("stored magic number %d\n", storedMagicNumber);
     if (storedMagicNumber != magicNumber)
         return 0;
     return 1;
