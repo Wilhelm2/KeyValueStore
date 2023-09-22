@@ -21,5 +21,11 @@ make random'''
       }
     }
 
+    stage('end') {
+      steps {
+        echo 'end'
+      }
+    }
+
   }
 }
