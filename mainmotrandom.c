@@ -134,12 +134,12 @@ int main(int argc, char* argv[]) {
     }
 
     fillsDatabase(nbElementsToInsert, kv, entryArray);
-    printf("all keys are contained in tab %d\n", checkDatabaseContains(kv, entryArray, nbElementsToInsert));
-    verifyEntriesDKV(kv);
     // printDatabase(kv);
 
     // printf("Now deletes elements from database\n");
-    // deleleteKeysInterval(0, nbElementsToInsert / 2, kv, entryArray);
+    deleleteKeysInterval(nbElementsToInsert / 2, nbElementsToInsert, kv, entryArray);
+    verifyEntriesDKV(kv);
+    printf("all keys are contained in tab %d\n", checkDatabaseContains(kv, entryArray, nbElementsToInsert));
     //    affiche_base(kv);
     if (kv_close(kv) == -1)
         printf("Error while closing the database\n");

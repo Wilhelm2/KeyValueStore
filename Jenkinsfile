@@ -1,31 +1,30 @@
 pipeline {
-  agent any
-  stages {
-    stage('build') {
-      parallel {
+    agent any
+    stages {
         stage('build') {
-          steps {
-            echo 'Build Step'
-            isUnix()
-            sh '''ls
-make random'''
-          }
+            parallel {
+                stage('build') {
+                    steps {
+                        echo 'Build Step'
+                        isUnix()
+                        sh '''ls
+                        make random'''
+                    }
+                }
+            }
         }
 
         stage('Run') {
-          steps {
-            sh 'python execution.py'
-          }
+            steps {
+                sh 'python execution.py'
+            }
         }
 
-      }
-    }
+        stage('end') {
+            steps {
+                echo 'end'
+            }
+        }
 
-    stage('end') {
-      steps {
-        echo 'end'
-      }
     }
-
-  }
 }

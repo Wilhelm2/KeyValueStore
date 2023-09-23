@@ -258,6 +258,7 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     if ((readTest = readAtPosition(kv->fds.fd_h, getOffsetH(hash), &blockIndex, sizeof(unsigned int), kv)) == -1)
         return -1;
     else if (readTest == 0 || blockIndex == -1) {  // either no block associated to that hash or error
+        printf("not contained readtest %d blockindex %d\n", readTest, blockIndex);
         errno = EINVAL;
         return 0;
     }
