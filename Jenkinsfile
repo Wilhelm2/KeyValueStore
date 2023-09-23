@@ -16,7 +16,8 @@ pipeline {
 
         stage('Run') {
             steps {
-                sh 'python execution.py'
+                when{ isUnix() }
+                    sh 'python execution.py'
             }
         }
 
