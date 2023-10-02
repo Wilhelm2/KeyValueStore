@@ -10,7 +10,7 @@ def getTime():
         return str(minutes) + "minutes " +  str(seconds) +" seconds "
         
 def doTest(hashFunction, nbAdds):
-    subprocess.check_call(["bash","-c","(time ./main database "+str(nbAdds) + " 10 FIRST_FIT \"r+\" " + str(hashFunction) + ") 2> results"])
+    subprocess.check_call(["bash","-c","(time ./bin/main database "+str(nbAdds) + " 10 FIRST_FIT \"r+\" " + str(hashFunction) + ") 2> results"])
     # subprocess.check_call(["bash","-c","(time valgrind ./main database "+str(nbAdds) + " 10 FIRST_FIT \"r+\" " + str(hashFunction) + ") 2> results"])
     print "Hashing " + str(hashFunction) + " " + getTime()
 #    subprocess.check_call(["bash","-c","rm data*"])	

@@ -139,7 +139,7 @@ int writeBlockIndexToH(KV* kv, int hash, int blockIndex) {
 
 int allocatesDkvSlot(KV* database, const kv_datum* key, const kv_datum* val) {
     int dkvSlot;
-    if ((dkvSlot = choix_allocation(database)(database, key, val)) == -1) {  // no free slot, so creates one
+    if ((dkvSlot = getAllocationMethod(database)(database, key, val)) == -1) {  // no free slot, so creates one
         createNewSlotEndDKV(database, key, val);
         dkvSlot = getSlotsInDKV(database) - 1;
     }

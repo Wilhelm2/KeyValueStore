@@ -1,24 +1,15 @@
 #include "kvInitialization.h"
 
-/*r : O_RDONLY
-r+ : O_CREAT|O_RDWR
-w : O_CREAT|O_TRUNC|O_WRONLY
-w+ : O_CREAT|O_RDWR
-Returns NULL if doesn't succeed to open the database
-*/
 KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t alloc) {
     KV* kv = malloc(sizeof(KV));
-    len_t nbElementsInDKV;
 
-    printf("avant init\n");
     if (initializeFiles(kv, mode, dbname, hashFunctionIndex) == -1)
         return NULL;
-    printf("pass init\n");
 
     unsigned int hashIndex;
     if (readAtPosition(kv->fds.fd_h, 1, &hashIndex, sizeof(unsigned int), kv) == -1)
         return NULL;
-    kv->hashFunction = selectHashFunction(hashIndex);
+    kv->hashFunction = getHashFunction(hashIndex);
     if (kv->hashFunction == NULL) {  // checks whether an hash function is associated to that index
         errno = EINVAL;
         return NULL;
@@ -27,7 +18,7 @@ KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t
     if (readAtPosition(kv->fds.fd_blk, 1, &kv->bh.nb_blocks, sizeof(unsigned int), kv) == -1)
         return NULL;
     memset(kv->bh.blockBLK, 0, BLOCK_SIZE);
-    // reads block 0 so that does not erase it at next call of readNewBlock
+    // reads block 0 to avoid erasing it at next call of readNewBlock
     if (readAtPosition(kv->fds.fd_blk, getOffsetBlk(0), kv->bh.blockBLK, BLOCK_SIZE, kv) == -1)
         return NULL;
     kv->bh.indexCurrLoadedBlock = 0;
@@ -40,6 +31,7 @@ KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t
         return NULL;
     }
 
+    len_t nbElementsInDKV;
     if (readAtPosition(kv->fds.fd_dkv, 1, &nbElementsInDKV, sizeof(int), kv) == -1)
         return NULL;
     // Adds space for 1000 elements
@@ -87,46 +79,9 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         free(database);
         return -1;
     }
-    printf("database exists \n");
     return databaseExists;
 }
 
-// Fills the array whose entry i indicates whether block i is empty or not
-int readsBlockOccupiedness(KV* kv) {
-    int test;
-    unsigned char buffblock[BLOCK_SIZE];
-    for (unsigned int i = 0; i < kv->bh.blockIsOccupiedSize; i++) {
-        if ((test = readAtPosition(kv->fds.fd_blk, getOffsetBlk(i + 1), buffblock, BLOCK_SIZE, kv)) == -1)
-            return -1;
-
-        if (test == 0)  // there is no block
-            kv->bh.blockIsOccupied[i] = false;
-        else {
-            if (getNbElementsInBlockBLK(i, kv) == 0)  // No elements in block
-                kv->bh.blockIsOccupied[i] = false;
-            else
-                kv->bh.blockIsOccupied[i] = true;
-        }
-    }
-    return 1;
-}
-
-// Get opening mode of file following mode. Opening modes are: r,r+,w,w+
-int getOpenMode(const char* mode) {
-    int flags;
-    if (strcmp(mode, "r") == 0)
-        flags = O_RDONLY;
-    if (strcmp(mode, "r+") == 0)
-        flags = O_CREAT | O_RDWR;
-    if (strcmp(mode, "w") == 0)
-        flags = O_CREAT | O_TRUNC | O_RDWR;
-    if (strcmp(mode, "w+") == 0)
-        flags = O_CREAT | O_TRUNC | O_RDWR;
-    return flags;
-}
-
-// Open (or creates) all database files
-// Returns -1 on errors, 0 when the database didn't exist, and 1 when the database already existed
 int openFiles(KV* database, const char* mode, const char* dbname) {
     int flags = getOpenMode(mode);
     int databaseExists;
@@ -171,7 +126,38 @@ int openFiles(KV* database, const char* mode, const char* dbname) {
     return databaseExists;
 }
 
-// Writes the magic number corresponding to each file
+int readsBlockOccupiedness(KV* kv) {
+    int test;
+    unsigned char buffblock[BLOCK_SIZE];
+    for (unsigned int i = 0; i < kv->bh.blockIsOccupiedSize; i++) {
+        if ((test = readAtPosition(kv->fds.fd_blk, getOffsetBlk(i + 1), buffblock, BLOCK_SIZE, kv)) == -1)
+            return -1;
+
+        if (test == 0)  // there is no block
+            kv->bh.blockIsOccupied[i] = false;
+        else {
+            if (getNbElementsInBlockBLK(i, kv) == 0)  // No elements in block
+                kv->bh.blockIsOccupied[i] = false;
+            else
+                kv->bh.blockIsOccupied[i] = true;
+        }
+    }
+    return 1;
+}
+
+int getOpenMode(const char* mode) {
+    int flags;
+    if (strcmp(mode, "r") == 0)
+        flags = O_RDONLY;
+    if (strcmp(mode, "r+") == 0)
+        flags = O_CREAT | O_RDWR;
+    if (strcmp(mode, "w") == 0)
+        flags = O_CREAT | O_TRUNC | O_RDWR;
+    if (strcmp(mode, "w+") == 0)
+        flags = O_CREAT | O_TRUNC | O_RDWR;
+    return flags;
+}
+
 int writeMagicNumbers(KV* database) {
     unsigned char magicNumber = 1;
     if (writeAtPosition(database->fds.fd_h, 0, &magicNumber, 1, database) == -1)
@@ -188,13 +174,10 @@ int writeMagicNumbers(KV* database) {
     return 1;
 }
 
-// Verifies that the file contain the right magic number
 int verifyFileMagicNumber(int descr, unsigned char magicNumber, KV* database) {
     unsigned char storedMagicNumber;
-    printf("verifies magic number %d\n", magicNumber);
     if (readAtPosition(descr, 0, &storedMagicNumber, 1, database) == -1)
         return -1;
-    printf("stored magic number %d\n", storedMagicNumber);
     if (storedMagicNumber != magicNumber)
         return 0;
     return 1;

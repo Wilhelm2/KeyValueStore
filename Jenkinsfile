@@ -6,9 +6,7 @@ pipeline {
                 stage('build') {
                     steps {
                         echo 'Build Step'
-                        isUnix()
-                        sh '''ls
-                        make random'''
+                        sh 'make random'
                     }
                 }
             }
