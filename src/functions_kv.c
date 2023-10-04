@@ -1,7 +1,7 @@
 #include "functions_kv.h"
 
 int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offsetKV) {
-    // First writes into an array to do only one write
+    // Writes everything into an array to perform only one write
     unsigned int nbBytesToWrite = sizeof(len_t) + key->len + sizeof(len_t) + val->len;
     unsigned char* tabwrite = malloc(nbBytesToWrite);
     // Writes key length + key
@@ -10,21 +10,18 @@ int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t off
     // Writes value length + value
     memcpy(tabwrite + sizeof(len_t) + key->len, &val->len, sizeof(len_t));
     memcpy(tabwrite + sizeof(len_t) + key->len + sizeof(len_t), val->ptr, val->len);
-    printf("write key length %d key %.*s offset %d\n", key->len, key->len, (char*)key->ptr, offsetKV);
-
+    // printf("write key length %d key %.*s offset %d\n", key->len, key->len, (char*)key->ptr, offsetKV);
     if (writeAtPosition(kv->fds.fd_kv, offsetKV, tabwrite, nbBytesToWrite, kv) == -1)
         return -1;
-
     free(tabwrite);
     return 1;
 }
 
-int fillsKey(KV* kv, len_t offsetKV, kv_datum* key) {
+int readKey(KV* kv, len_t offsetKV, kv_datum* key) {
     if (key == NULL) {  // key must have been allocated
         errno = EINVAL;
         return -1;
     }
-
     key->len = getKeyLengthFromKV(kv, offsetKV);
     if (key->len == 0)
         return -1;
@@ -34,9 +31,7 @@ int fillsKey(KV* kv, len_t offsetKV, kv_datum* key) {
     return 1;
 }
 
-// Fills data into val
-// Returns 1 on success and -1 on failure
-int fillValue(KV* database, len_t offsetKV, kv_datum* val, const kv_datum* key) {
+int readValue(KV* database, len_t offsetKV, kv_datum* val, const kv_datum* key) {
     if (val == NULL || key == NULL) {
         errno = EINVAL;
         return -1;
@@ -57,7 +52,6 @@ len_t getKeyLengthFromKV(KV* kv, len_t offsetKV) {
     return length;
 }
 
-// Returns 1 when keys are equal, -1 when error, and 0 otherwise
 int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
     len_t keyLength = 0;
     len_t totalReadBytes = 0;
@@ -68,7 +62,6 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
     if (readAtPosition(kv->fds.fd_kv, offsetKV, &keyLength, sizeof(int), kv) == -1)
         return -1;
     //    printf("key->len %d keyLength %d offset %d\n", key->len, keyLength, offsetKV);
-
     if (keyLength != key->len)
         return 0;
     while (totalReadBytes < keyLength) {
@@ -77,9 +70,8 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
         if (readBytes == -1)
             return -1;
         //      printf("length %d key %.*s offset %d\n", readBytes, readBytes, buf, offsetKV);
-
         if (memcmp(((unsigned char*)key->ptr) + totalReadBytes, buf, readBytes) != 0)
-            return 0;  // part of keys are not equal
+            return 0;  // part of the keys are not equal
         totalReadBytes += (len_t)readBytes;
     }
     return 1;

@@ -1,6 +1,7 @@
 #ifndef SLOT_ALLOCATIONS_H
 #define SLOT_ALLOCATIONS_H
 #include "commonFunctions.h"
+#include "functions_dkv.h"
 #include "structures.h"
 
 // Returns the allocation method used by the database

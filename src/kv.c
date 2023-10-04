@@ -101,11 +101,11 @@ int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
     if ((blockIndex = getBlockIndexForHash(hash, kv)) == -1)
         return -1;
 
-    unsigned int dkvSlot = allocatesDkvSlot(kv, key, val);  // Allocates DKV slot and Updates DKV
+    unsigned int dkvSlot = allocatesDKVSlot(kv, key, val);  // Allocates DKV slot and Updates DKV
 
-    if (writeElementToKV(kv, key, val, getSlotOffsetDkv(kv, dkvSlot)) == -1)  // Writes tuple to KV
+    if (writeElementToKV(kv, key, val, getKVOffsetDKVSlot(kv, dkvSlot)) == -1)  // Writes tuple to KV
         return -1;
-    if (addsEntryToBLK(kv, getSlotOffsetDkv(kv, dkvSlot), blockIndex) == -1)  // Writes the entry into BLK
+    if (addsEntryToBLK(kv, getKVOffsetDKVSlot(kv, dkvSlot), blockIndex) == -1)  // Writes the entry into BLK
         return -1;
     return 0;
 }
@@ -131,7 +131,7 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     offset = lookupKeyOffsetKV(kv, key, blockIndex);
     if (offset == 0)
         return 0;
-    if (fillValue(kv, offset, val, key) == -1)
+    if (readValue(kv, offset, val, key) == -1)
         return -1;
     return 1;
 }
@@ -175,16 +175,16 @@ int kv_next(KV* kv, kv_datum* key, kv_datum* val) {
         errno = EACCES;
         return -1;
     }
-    while (kv->dkvh.nextTuple < getSlotsInDKV(kv) && getLengthDkv(kv, kv->dkvh.nextTuple) > 0)
+    while (kv->dkvh.nextTuple < getNbSlotsInDKV(kv) && getDKVSlotSize(kv, kv->dkvh.nextTuple) > 0)
         kv->dkvh.nextTuple++;  // jumps empty slots
 
-    if (getSlotsInDKV(kv) == kv->dkvh.nextTuple)  // Arrived at the end of the database.
+    if (getNbSlotsInDKV(kv) == kv->dkvh.nextTuple)  // Arrived at the end of the database.
         return 0;
 
-    len_t tupleOffset = getSlotOffsetDkv(kv, kv->dkvh.nextTuple);
-    if (fillsKey(kv, tupleOffset, key) == -1)
+    len_t tupleOffset = getKVOffsetDKVSlot(kv, kv->dkvh.nextTuple);
+    if (readKey(kv, tupleOffset, key) == -1)
         return -1;
-    if (fillValue(kv, tupleOffset, val, key) == -1)
+    if (readValue(kv, tupleOffset, val, key) == -1)
         return -1;
     kv->dkvh.nextTuple++;
     return 1;

@@ -33,11 +33,11 @@ int getKVOffsetBLKBlock(unsigned int indexInBlock, unsigned int blockIndex, KV* 
 bool hasNextBLKBlock(unsigned int blockIndex, KV* database);
 // Checks that blockIndex is loaded in database and if not loads it, by first writing the previous block to file.
 int checkAndLoadBLKBlock(unsigned int blockIndex, KV* database);
-
+// Get offset inside a BLK block
 static inline len_t getOffsetBlk(unsigned int index) {
     return (index - 1) * BLOCK_SIZE + HEADER_SIZE_BLK;
 }
-
+// Get offset of BLK block
 static inline len_t getOffsetBLKBlock(unsigned int index) {
     return HEADER_SIZE_BLOCK + index * sizeof(unsigned int);
 }

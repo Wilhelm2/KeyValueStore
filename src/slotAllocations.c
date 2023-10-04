@@ -11,11 +11,11 @@ int (*getAllocationMethod(KV* database))(KV* database, const kv_datum* key, cons
 }
 
 int first_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
-    unsigned int nbSlots = getSlotsInDKV(kv);
+    unsigned int nbSlots = getNbSlotsInDKV(kv);
     int requiredSpace = sizeof(key->len) + key->len + sizeof(val->len) + val->len;
     int sizeOfCurrSlot;
     for (unsigned int i = 0; i < nbSlots; i++) {
-        sizeOfCurrSlot = getSlotSizeDkv(kv, i);
+        sizeOfCurrSlot = getDKVSlotSize(kv, i);
         if (sizeOfCurrSlot > 0) {
             if (requiredSpace <= sizeOfCurrSlot)
                 return i;
@@ -25,13 +25,13 @@ int first_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
 }
 
 int worst_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
-    unsigned int nbSlots = getSlotsInDKV(kv);
+    unsigned int nbSlots = getNbSlotsInDKV(kv);
     int requiredSpace = sizeof(key->len) + key->len + sizeof(val->len) + val->len;
     int sizeOfCurrSlot;
     int biggestSlotIndex = -1;
     int biggestSlotSize = -1;
     for (unsigned int i = 0; i < nbSlots; i++) {
-        sizeOfCurrSlot = getSlotSizeDkv(kv, i);
+        sizeOfCurrSlot = getDKVSlotSize(kv, i);
         if (sizeOfCurrSlot > 0) {
             if (requiredSpace <= sizeOfCurrSlot && sizeOfCurrSlot > biggestSlotSize) {
                 biggestSlotSize = sizeOfCurrSlot;
@@ -43,14 +43,14 @@ int worst_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
 }
 
 int best_fit(KV* kv, const kv_datum* key, const kv_datum* val) {
-    unsigned int nbSlots = getSlotsInDKV(kv);
+    unsigned int nbSlots = getNbSlotsInDKV(kv);
     int requiredSpace = sizeof(key->len) + key->len + sizeof(val->len) + val->len;
     int sizeOfCurrSlot;
     int bestSlotIndex = -1;
     int bestSlotSize = -1;
 
     for (unsigned int i = 0; i < nbSlots; i++) {
-        sizeOfCurrSlot = getSlotSizeDkv(kv, i);
+        sizeOfCurrSlot = getDKVSlotSize(kv, i);
         if (requiredSpace <= sizeOfCurrSlot && sizeOfCurrSlot < bestSlotSize) {
             if (sizeOfCurrSlot == requiredSpace)
                 return i;
