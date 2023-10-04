@@ -11,10 +11,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// 32 bits allow a database size of up to 4 Go
+// 32 bits allow a database size of up to 4 Go.
 typedef uint32_t len_t;
 
-// Represent a couple, which is either a key or a value
+// Contains a value and its length. Data type used for keys and values.
 struct kv_datum {
     len_t len;  // Data's length
     void* ptr;  // Data
@@ -45,11 +45,11 @@ typedef struct {
     const char* mode;  // File opening mode
 } fileDescriptors;
 
-// Structure to handle currently loaded BLK block
+// Structure to handle the currently loaded BLK block
 typedef struct {
     unsigned char blockBLK[BLOCK_SIZE];  // Content of loaded block
     unsigned int indexCurrLoadedBlock;   // Index of currently loaded block
-    unsigned int blockIsOccupiedSize;    // Size of the array tracking currently occupied blocks
+    unsigned int blockIsOccupiedSize;    // Size of the array tracking the currently occupied blocks
     bool* blockIsOccupied;   // Registers whether blocks are occupied or not. blockIsOccupied[i]=true means that block i
                              // is occupied
     unsigned int nb_blocks;  // Number of BLK blocks in the database
@@ -59,18 +59,17 @@ typedef struct {
 typedef struct {
     unsigned char* dkv;             // Holds the content of DKV
     unsigned int maxElementsInDKV;  // Maximal number of elements in DKV
-    unsigned int nextTuple;         // Index of next tuple in DKV (used to iterate over the database)
+    unsigned int nextTuple;         // Index of the next tuple in DKV (used to iterate over the database)
 } dkvHandler;
 
+// Structure to manage open databases
 typedef struct {
     fileDescriptors fds;
-
     blockHandler bh;
-
     dkvHandler dkvh;
-
-    alloc_t allocationMethod;                              // Allocation method FIRST_FIT, WORST_FIT or BEST_FIT
-    unsigned int (*hashFunction)(const kv_datum* kdatum);  // Hash function used to place elements in the database
+    alloc_t allocationMethod;  // Allocation method FIRST_FIT, WORST_FIT or BEST_FIT
+    unsigned int (*hashFunction)(
+        const kv_datum* kdatum);  // Hash function used to compute the hash of keys in the database
 } KV;
 
 #endif

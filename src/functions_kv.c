@@ -66,7 +66,7 @@ int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
         return 0;
     while (totalReadBytes < keyLength) {
         maxReadBytesInStep = (keyLength - totalReadBytes) % 2049;  // reads at most 2048 bytes at each step
-        readBytes = read_controle(kv->fds.fd_kv, buf, maxReadBytesInStep);
+        readBytes = readControlled(kv->fds.fd_kv, buf, maxReadBytesInStep);
         if (readBytes == -1)
             return -1;
         //      printf("length %d key %.*s offset %d\n", readBytes, readBytes, buf, offsetKV);

@@ -89,7 +89,7 @@ int kv_close(KV* kv) {
 int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
     int hash = kv->hashFunction(key);
     int blockIndex;
-    if (strcmp(kv->fds.mode, "r") == 0) {  // Checks rights to write
+    if (strcmp(kv->fds.mode, "r") == 0) {  // Checks write rights
         errno = EACCES;
         return -1;
     }
@@ -101,11 +101,12 @@ int kv_put(KV* kv, const kv_datum* key, const kv_datum* val) {
     if ((blockIndex = getBlockIndexForHash(hash, kv)) == -1)
         return -1;
 
-    unsigned int dkvSlot = allocatesDKVSlot(kv, key, val);  // Allocates DKV slot and Updates DKV
+    // Allocates a new DKV slot and updates DKV (number of slots and marks the slot as used)
+    unsigned int dkvSlot = allocatesDKVSlot(kv, key, val);
 
     if (writeElementToKV(kv, key, val, getKVOffsetDKVSlot(kv, dkvSlot)) == -1)  // Writes tuple to KV
         return -1;
-    if (addsEntryToBLK(kv, getKVOffsetDKVSlot(kv, dkvSlot), blockIndex) == -1)  // Writes the entry into BLK
+    if (addsEntryToBLK(kv, getKVOffsetDKVSlot(kv, dkvSlot), blockIndex) == -1)  // Writes the entry to BLK
         return -1;
     return 0;
 }
@@ -127,7 +128,7 @@ int kv_get(KV* kv, const kv_datum* key, kv_datum* val) {
     if (blockIndex == -1)
         return (errno == EINVAL ? 0 : -1);
 
-    // Lookup the key in KV. Returns offset when found
+    // Looks the key up in KV.
     offset = lookupKeyOffsetKV(kv, key, blockIndex);
     if (offset == 0)
         return 0;

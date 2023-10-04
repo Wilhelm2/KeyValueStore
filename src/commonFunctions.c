@@ -1,6 +1,5 @@
 #include "commonFunctions.h"
 
-// Concat two strings
 char* concat(const char* S1, const char* S2) {
     char* result = malloc(strlen(S1) + strlen(S2) + 1);
     strncpy(result, S1, strlen(S1));
@@ -9,28 +8,26 @@ char* concat(const char* S1, const char* S2) {
     return result;
 }
 
-// Reads bytes while controling for errors and that the right number of bytes have been read
-int read_controle(int descripteur, void* ptr, int nboctets) {
+int readControlled(int fd, void* ptr, int nbBytes) {
     int test;
-    if ((test = read(descripteur, ptr, nboctets)) == -1)
+    if ((test = read(fd, ptr, nbBytes)) == -1)
         return -1;
-    if (test != nboctets) {
+    if (test != nbBytes) {
         errno = EINVAL;
         return -1;
     }
     return test;
 }
 
-// Writes data while controlling for errors and that the right number of bytes have been written
-int write_controle(int descripteur, const void* ptr, int nboctets) {
+int writeControlled(int fd, const void* ptr, int nbBytes) {
     int test;
-    if ((test = write(descripteur, ptr, nboctets)) == -1)
+    if ((test = write(fd, ptr, nbBytes)) == -1)
         return -1;
-    if (test != nboctets) {
+    if (test != nbBytes) {
         errno = EINVAL;
         return -1;
     }
-    return nboctets;
+    return nbBytes;
 }
 
 int readAtPosition(int fd, unsigned int position, void* dest, unsigned int nbBytes, KV* database) {
@@ -40,8 +37,6 @@ int readAtPosition(int fd, unsigned int position, void* dest, unsigned int nbByt
         free(database);
         return -1;
     }
-
-    // lecture de dkv en mémoire
     if ((readBytes = read(fd, dest, nbBytes)) == -1) {
         closeFileDescriptors(database);
         free(database);
@@ -56,9 +51,7 @@ int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbByt
         free(database);
         return -1;
     }
-
-    // lecture de dkv en mémoire
-    if (write_controle(fd, src, nbBytes) == -1) {
+    if (writeControlled(fd, src, nbBytes) == -1) {
         closeFileDescriptors(database);
         free(database);
         return -1;
@@ -66,7 +59,6 @@ int writeAtPosition(int fd, unsigned int position, void* src, unsigned int nbByt
     return 1;
 }
 
-// Close either returns 0 when succeeds or -1 when fails. Thus the function will return -1 if one of the closes fail
 int closeFileDescriptors(KV* database) {
     int res = 0;
     if (database->fds.fd_blk > 0)
@@ -77,6 +69,8 @@ int closeFileDescriptors(KV* database) {
         res |= close(database->fds.fd_h);
     if (database->fds.fd_kv > 0)
         res |= close(database->fds.fd_kv);
+    // Close either returns 0 when succeeds or -1 when fails.
+    // Thus the function will return -1 if one of the closes fail.
     return res;
 }
 
