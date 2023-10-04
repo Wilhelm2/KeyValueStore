@@ -25,13 +25,13 @@ typedef struct kv_datum kv_datum;
 typedef enum { FIRST_FIT, WORST_FIT, BEST_FIT } alloc_t;
 
 // File header sizes
-#define LG_EN_TETE_H 5    // MagicN + hashFunctionIndex
-#define LG_EN_TETE_BLK 5  // MagicN + nb_blocks
-#define LG_EN_TETE_KV 1   // MagicN
-#define LG_EN_TETE_DKV 5  // MagicN + nb_blocks
+#define HEADER_SIZE_H 5    // MagicN + hashFunctionIndex
+#define HEADER_SIZE_BLK 5  // MagicN + nb_blocks
+#define HEADER_SIZE_KV 1   // MagicN
+#define HEADER_SIZE_DKV 5  // MagicN + nb_blocks
 
 // Header size of blocks in BLK
-#define LG_EN_TETE_BLOCK 9  // hasNextBlock(bool) + indexNextBlockWithSameHash(int) + numberOfSlots(int)
+#define HEADER_SIZE_BLOCK 9  // hasNextBlock(bool) + indexNextBlockWithSameHash(int) + numberOfSlots(int)
 
 // Size of blocks in BLK
 #define BLOCK_SIZE 4096

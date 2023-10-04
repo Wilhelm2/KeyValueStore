@@ -1,47 +1,40 @@
 #ifndef KV_H
 #define KV_H
 
+#include "functions_blk.h"
+#include "functions_dkv.h"
+#include "functions_h.h"
+#include "functions_kv.h"
 #include "hashFunctions.h"
 #include "kvInitialization.h"
 #include "slotAllocations.h"
 #include "structures.h"
 
+/* Opens the database. The database can be opened in the modes:
+    - r : O_RDONLY
+    - r+ : O_CREAT|O_RDWR
+    - w : O_CREAT|O_TRUNC|O_WRONLY
+    - w+ : O_CREAT|O_RDWR
+    Returns NULL if fails to open the database. Otherwise returns KV, the structure containing the database's metadata.
+*/
+KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t alloc);
+// Closes the database. Returns -1 upon failure and 1 on success.
 int kv_close(KV* kv);
-void freeDatabase(KV* database);
-
+// Adds an element into the database. The element is identified by its key.
+// If a couple (key,val1) is already registered, then deletes it and replaces it with (key,val).
 int kv_put(KV* kv, const kv_datum* key, const kv_datum* val);
-int getBlockIndexForHash(unsigned int hash, KV* kv);
-int getBlockIndexWithFreeEntry(KV* kv, int hash);
-int AllocatesNewBlock(KV* kv);
-int writeBlockIndexToH(KV* kv, int hash, int blockIndex);
-int allocatesDkvSlot(KV* database, const kv_datum* key, const kv_datum* val);
-void createNewSlotEndDKV(KV* kv, const kv_datum* key, const kv_datum* val);
-void increaseSizeDkv(KV* kv);
-void SetSlotDKVAsOccupied(KV* kv, int dkvSlot);
-void trySplitDKVSlot(KV* kv, unsigned int slotToSplit, unsigned int slotToSplitRequiredLength);
-void insertNewSlotDKV(KV* kv, int firstSlot);
-int writeElementToKV(KV* kv, const kv_datum* key, const kv_datum* val, len_t offsetKV);
-int addsEntryToBLK(KV* kv, len_t offsetKV, unsigned int blockIndex);
-
+// Gets the value associated to key into val.
+// Returns 1 on success, 0 if the key is not present in the database and -1 on error.
 int kv_get(KV* kv, const kv_datum* key, kv_datum* val);
-len_t lookupKeyOffsetKV(KV* kv, const kv_datum* key, int blockIndex);
-int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV);
-int fillValue(KV* kv, len_t offsetKV, kv_datum* val, const kv_datum* key);
-
+// Deletes a key from the database.
+// Returns 0 on success, -1 with on error, with errno set to EINVAL if the key is not contained in the database.
 int kv_del(KV* kv, const kv_datum* key);
-void freeSlotDKV(len_t offsetKV, KV* kv);
-void tryMergeSlots(KV* database, unsigned int centralSlot);
-void mergeSlots(unsigned int left, unsigned int right, KV* database);
-int freeEntryBLK(int blockIndex, int offset, KV* kv, int hash, int previousBloc);
-int freeHashtableEntry(KV* kv, int hash);
-
+// Initializes the database's iterator.
 void kv_start(KV* kv);
-
+// Gets the next couple (key,value) in the database.
+// Returns 1 when succeeded to read the next couple, 0 when arrived at the end of the database, and -1 on error.
 int kv_next(KV* kv, kv_datum* key, kv_datum* val);
-int fillsKey(KV* kv, len_t offsetKV, kv_datum* key);
-len_t getKeyLengthFromKV(KV* kv, len_t offsetKV);
-
+// Truncates KV by removing obsolete data taken up by deleted or moved data.
 int truncate_kv(KV* kv);
 
-void verifyEntriesDKV(KV* database);
 #endif

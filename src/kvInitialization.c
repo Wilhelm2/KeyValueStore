@@ -1,52 +1,4 @@
 #include "kvInitialization.h"
-
-KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t alloc) {
-    KV* kv = malloc(sizeof(KV));
-
-    if (initializeFiles(kv, mode, dbname, hashFunctionIndex) == -1)
-        return NULL;
-
-    unsigned int hashIndex;
-    if (readAtPosition(kv->fds.fd_h, 1, &hashIndex, sizeof(unsigned int), kv) == -1)
-        return NULL;
-    kv->hashFunction = getHashFunction(hashIndex);
-    if (kv->hashFunction == NULL) {  // checks whether an hash function is associated to that index
-        errno = EINVAL;
-        return NULL;
-    }
-
-    if (readAtPosition(kv->fds.fd_blk, 1, &kv->bh.nb_blocks, sizeof(unsigned int), kv) == -1)
-        return NULL;
-    memset(kv->bh.blockBLK, 0, BLOCK_SIZE);
-    // reads block 0 to avoid erasing it at next call of readNewBlock
-    if (readAtPosition(kv->fds.fd_blk, getOffsetBlk(0), kv->bh.blockBLK, BLOCK_SIZE, kv) == -1)
-        return NULL;
-    kv->bh.indexCurrLoadedBlock = 0;
-
-    // adds space for 40 new blocks
-    kv->bh.blockIsOccupied = calloc(kv->bh.nb_blocks + 40, sizeof(bool));
-    kv->bh.blockIsOccupiedSize = 40 + kv->bh.nb_blocks;
-    if (readsBlockOccupiedness(kv) == -1) {
-        kv_close(kv);
-        return NULL;
-    }
-
-    len_t nbElementsInDKV;
-    if (readAtPosition(kv->fds.fd_dkv, 1, &nbElementsInDKV, sizeof(int), kv) == -1)
-        return NULL;
-    // Adds space for 1000 elements
-    kv->dkvh.dkv =
-        calloc((nbElementsInDKV + 1000) * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, sizeof(char));
-    if (readAtPosition(kv->fds.fd_dkv, 0, kv->dkvh.dkv,
-                       nbElementsInDKV * (sizeof(unsigned int) + sizeof(len_t)) + LG_EN_TETE_DKV, kv) == -1)
-        return NULL;
-    kv->dkvh.maxElementsInDKV = nbElementsInDKV + 1000;
-
-    kv->allocationMethod = alloc;
-    kv->fds.mode = mode;
-    return kv;
-}
-
 int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned int hashFunctionIndex) {
     int databaseExists = openFiles(database, mode, dbname);
 
@@ -59,7 +11,7 @@ int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned
         char tmp[HASH_TABLE_SIZE];
         memset(tmp, -1, HASH_TABLE_SIZE);
         // Required because otherwise will read blockIndex = 0 when there is no blockIndex written
-        if (writeAtPosition(database->fds.fd_h, LG_EN_TETE_H, tmp, HASH_TABLE_SIZE, database) == -1)
+        if (writeAtPosition(database->fds.fd_h, HEADER_SIZE_H, tmp, HASH_TABLE_SIZE, database) == -1)
             return -1;
 
         // Sets the number of blocks and slots to 0
@@ -136,7 +88,7 @@ int readsBlockOccupiedness(KV* kv) {
         if (test == 0)  // there is no block
             kv->bh.blockIsOccupied[i] = false;
         else {
-            if (getNbElementsInBlockBLK(i, kv) == 0)  // No elements in block
+            if (getNbSlotsInBLKBlock(i, kv) == 0)  // No elements in block
                 kv->bh.blockIsOccupied[i] = false;
             else
                 kv->bh.blockIsOccupied[i] = true;

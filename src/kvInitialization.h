@@ -7,18 +7,11 @@
 // #include <string.h>
 
 #include "commonFunctions.h"
+#include "functions_blk.h"
 #include "hashFunctions.h"
 #include "slotAllocations.h"
 #include "structures.h"
 
-/* Opens the database. The database can be opened in the modes:
-    - r : O_RDONLY
-    - r+ : O_CREAT|O_RDWR
-    - w : O_CREAT|O_TRUNC|O_WRONLY
-    - w+ : O_CREAT|O_RDWR
-    Returns NULL if fails to open the database. Otherwise returns KV, the structure containing the database's metadata.
-*/
-KV* kv_open(const char* dbname, const char* mode, int hashFunctionIndex, alloc_t alloc);
 // Initializes the file descriptors and verifies that the right magic numbers are saved in the files when the database
 // already exists. Returns -1 upon error or when a file has not the right magic number.
 int initializeFiles(KV* database, const char* mode, const char* dbname, unsigned int hashFunctionIndex);
@@ -36,6 +29,5 @@ int verifyFileMagicNumber(int descr, unsigned char magicNumber, KV* database);
 // Tries to open the file filename with the flags flags in mode mode. Returns file descriptor on success and -1 on
 // error.
 int tryOpen(KV* database, const char* filename, int flags, unsigned int mode);
-int kv_close(KV* kv);  // forward declaration
 
 #endif

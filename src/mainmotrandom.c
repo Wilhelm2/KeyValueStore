@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "kv.h"
+#include "kvStats.h"
 
 int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau);
 kv_datum* createEntryArray(unsigned int n, int maximumWordSize);
