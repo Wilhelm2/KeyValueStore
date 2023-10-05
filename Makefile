@@ -11,7 +11,7 @@ EXE 	:= $(BIN_DIR)/main
 .PHONY: all clean
 
 
-FILES= $(OBJ_DIR)/hashFunctions.o $(OBJ_DIR)/kvInitialization.o $(OBJ_DIR)/commonFunctions.o $(OBJ_DIR)/kv.o $(OBJ_DIR)/slotAllocations.o $(OBJ_DIR)/kvStats.o $(OBJ_DIR)/functions_h.o $(OBJ_DIR)/functions_blk.o $(OBJ_DIR)/functions_dkv.o $(OBJ_DIR)/functions_kv.o
+FILES= $(OBJ_DIR)/hashFunctions.o $(OBJ_DIR)/kvInitialization.o $(OBJ_DIR)/commonFunctions.o $(OBJ_DIR)/kv.o $(OBJ_DIR)/slotAllocations.o $(OBJ_DIR)/kvStats.o $(OBJ_DIR)/functions_h.o $(OBJ_DIR)/functions_blk.o $(OBJ_DIR)/functions_dkv.o $(OBJ_DIR)/functions_kv.o $(OBJ_DIR)/testUtilities.o
 
 $(OBJ_DIR):
 	mkdir $@

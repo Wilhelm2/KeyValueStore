@@ -10,39 +10,19 @@
 #include <unistd.h>
 #include "kv.h"
 #include "kvStats.h"
-
+#include "testUtilities.h"
 int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau);
-kv_datum* createEntryArray(unsigned int n, int maximumWordSize);
-kv_datum makeEntry(unsigned int lenght_max);
 void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau);
 void printDatabase(KV* kv);
 void freeEntryArray(kv_datum* array, unsigned int size);
 bool checkDatabaseContains(KV* database, kv_datum* keys, unsigned int size);
 void printAllKeysWithSameHash(kv_datum* keys, unsigned int size, unsigned int hash, KV* kv);
 
-kv_datum* createEntryArray(unsigned int n, int maximumWordSize) {
-    kv_datum* tableau = calloc(n, sizeof(kv_datum));
-    for (unsigned int i = 0; i < n; i++)
-        tableau[i] = makeEntry(maximumWordSize);
-    return tableau;
-}
-
-kv_datum makeEntry(unsigned int length_max) {
-    kv_datum kv;
-    kv.len = rand() % length_max + 1;
-    kv.ptr = malloc(kv.len + 1);  // +1 for '\0'
-    for (unsigned int i = 0; i < kv.len; i++) {
-        ((char*)kv.ptr)[i] = 'a' + (rand() % 27);
-    }
-    ((char*)kv.ptr)[kv.len] = '\0';
-
-    return kv;
-}
-
 // Inserts elements in table with key going from 0 to i-1 and values going from 1 to i
 void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau) {
     for (unsigned int i = 0; i < n; i++) {
-        printf("\t\t writes key %d length %d key %.*s\n", i, tableau[i].len, tableau[i].len, (char*)tableau[i].ptr);
+        printf("\t\t writes key %d length %d key %.*s nbelements %d\n", i, tableau[i].len, tableau[i].len,
+               (char*)tableau[i].ptr, getNbSlotsInDKV(kv));
 
         //        printf("inserts element %d\n", i);
         kv_put(kv, &tableau[i], &tableau[(i + 1) % n]);
@@ -111,8 +91,6 @@ void freeEntryArray(kv_datum* array, unsigned int size) {
 }
 
 int main(int argc, char* argv[]) {
-    unsigned int hidx = 0;
-
     if (argc < 6) {
         printf("usage %s : <nom de base> <nbElementsToInsert> <taille_max_mot> <methode d'allocation> <mode> <hidx>\n",
                argv[0]);
@@ -121,11 +99,7 @@ int main(int argc, char* argv[]) {
     unsigned int nbElementsToInsert = atoi(argv[2]);
     unsigned int maximumWordSize = atoi(argv[3]);
     alloc_t allocationMethod = atoi(argv[4]);
-    if (argc == 6)
-        hidx = atoi(argv[6]);
-
-    // Builds the array to fill the database
-    kv_datum* entryArray = createEntryArray(nbElementsToInsert, maximumWordSize);
+    unsigned int hidx = atoi(argv[6]);
 
     // Opens the database
     KV* kv = kv_open(argv[1], argv[5], hidx, allocationMethod);
@@ -134,14 +108,23 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
+    // Builds the array to fill the database
+    kv_datum* entryArray = createRandomArray(nbElementsToInsert, maximumWordSize);
     fillsDatabase(nbElementsToInsert, kv, entryArray);
     // printDatabase(kv);
 
     // printf("Now deletes elements from database\n");
     deleleteKeysInterval(nbElementsToInsert / 2, nbElementsToInsert, kv, entryArray);
     verifyEntriesDKV(kv);
-    printf("all keys are contained in tab %d\n", checkDatabaseContains(kv, entryArray, nbElementsToInsert));
+    kv_datum* uniqueVector = extractUniqueEntriesArray(nbElementsToInsert, entryArray);
+    printf("all keys are contained in tab %d\n",
+           checkDatabaseContains(kv, uniqueVector, getNbUniqueArrayElements(entryArray, nbElementsToInsert)));
     //    affiche_base(kv);
+    printStatsOnDKV(kv);
+    // printSlotsDKV(kv);
+    // printFreeSlotsDKV(kv);
+    // printTakenSlotsDKV(kv);
+
     if (kv_close(kv) == -1)
         printf("Error while closing the database\n");
     freeEntryArray(entryArray, nbElementsToInsert);

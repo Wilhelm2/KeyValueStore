@@ -28,3 +28,49 @@ void verifyEntriesDKV(KV* database) {
     else
         printf("NO ERROR DETECTED IN DKV\n");
 }
+
+void printStatsOnDKV(KV* database) {
+    unsigned int freeSpace = 0;
+    unsigned int usedSpace = 0;
+    unsigned int freeSlots = 0;
+    unsigned int usedSlots = 0;
+
+    for (unsigned int i = 0; i < getNbSlotsInDKV(database); i++) {
+        if (getDKVSlotSize(database, i) > 0) {  // Free slot
+            freeSpace += getDKVSlotSize(database, i);
+            freeSlots++;
+        } else {
+            usedSpace += getDKVSlotSize(database, i);
+            usedSlots++;
+        }
+    }
+    printf("Number of used slots %d, total used space %d\n", usedSlots, usedSpace);
+    printf("Number of free slots %d, total free space %d\n", freeSlots, freeSpace);
+}
+
+void printSlotsDKV(KV* database) {
+    for (unsigned int i = 0; i < getNbSlotsInDKV(database); i++) {
+        if (getDKVSlotSize(database, i) > 0) {
+            printf("Slot %d - FREE: offset %d length %d\n", i, getKVOffsetDKVSlot(database, i),
+                   getDKVSlotSize(database, i));
+        } else
+            printf("Slot %d - TAKEN: offset %d length %d\n", i, getKVOffsetDKVSlot(database, i),
+                   abs(getDKVSlotSize(database, i)));
+    }
+}
+
+void printFreeSlotsDKV(KV* database) {
+    for (unsigned int i = 0; i < getNbSlotsInDKV(database); i++) {
+        if (getDKVSlotSize(database, i) > 0)
+            printf("Slot %d - FREE: offset %d length %d\n", i, getKVOffsetDKVSlot(database, i),
+                   getDKVSlotSize(database, i));
+    }
+}
+
+void printTakenSlotsDKV(KV* database) {
+    for (unsigned int i = 0; i < getNbSlotsInDKV(database); i++) {
+        if (getDKVSlotSize(database, i) < 0)
+            printf("Slot %d - TAKEN: offset %d length %d\n", i, getKVOffsetDKVSlot(database, i),
+                   abs(getDKVSlotSize(database, i)));
+    }
+}

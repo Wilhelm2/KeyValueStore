@@ -61,8 +61,8 @@ void freeDKVSlot(len_t offsetKV, KV* kv) {
         if (getKVOffsetDKVSlot(kv, i) == offsetKV) {
             int length = (-1) * getDKVSlotSize(kv, i);  // multiplies by -1 to tag the slot as free
             memcpy(kv->dkvh.dkv + getOffsetDkv(i), &length, sizeof(int));
-            trySlotMerge(kv, i);                 // Tries to merge the now free slot with right and left slots
-            if (i == (getNbSlotsInDKV(kv) - 1))  // the newly freed slot is the last one of DKV
+            trySlotMerge(kv, i);           // Tries to merge the now free slot with right and left slots
+            if (i == getNbSlotsInDKV(kv))  // the newly freed slot is the last one of DKV
                 setNbSlotsInDKV(kv, getNbSlotsInDKV(kv) - 1);
             return;
         }
@@ -83,7 +83,7 @@ void trySlotMerge(KV* database, unsigned int centralSlot) {
 }
 
 void mergeSlots(unsigned int left, unsigned int right, KV* database) {
-    printf("merge slots %d and %d", left, right);
+    printf("merge slots %d and %d total number of slots %d\n", left, right, getNbSlotsInDKV(database));
     printf("offset %d and %d\n", getKVOffsetDKVSlot(database, left), getKVOffsetDKVSlot(database, right));
     printf("length %d and %d\n", getDKVSlotSize(database, left), getDKVSlotSize(database, right));
     len_t newSlotSize = getDKVSlotSize(database, left) + getDKVSlotSize(database, right);
