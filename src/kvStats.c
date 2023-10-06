@@ -74,3 +74,51 @@ void printTakenSlotsDKV(KV* database) {
                    abs(getDKVSlotSize(database, i)));
     }
 }
+
+void printElementsPerBlock(KV* database) {
+    bool* visited = calloc(sizeof(bool), database->bh.nb_blocks);
+    unsigned int* nbElementsInBlockSerie = calloc(sizeof(unsigned int), database->bh.nb_blocks);
+    unsigned int nbSeries = 0;
+    unsigned int blockIndex;
+    bool hasNext;
+    // Gets the number of elements per series of block
+    for (unsigned int i = 0; i < database->bh.nb_blocks; i++) {
+        // Element is not visited yet and the block is not empty
+        if (!visited[i] && getNbSlotsInBLKBlock(i, database) > 0) {
+            blockIndex = i;
+            hasNext = false;
+            do {
+                nbElementsInBlockSerie[nbSeries] += getNbSlotsInBLKBlock(blockIndex, database);
+                visited[blockIndex] = true;
+                if (hasNextBLKBlock(blockIndex, database)) {
+                    hasNext = hasNextBLKBlock(blockIndex, database);
+                    blockIndex = getIndexNextBLKBlock(blockIndex, database);
+                }
+                printf("index of next block %d\n", blockIndex);
+            } while (hasNext);
+            nbSeries++;
+        }
+    }
+
+    unsigned int sum = 0;
+    for (unsigned int i = 0; i < nbSeries; i++) {
+        printf("Serie %d nbEntries %d\n", i, nbElementsInBlockSerie[i]);
+        sum += nbElementsInBlockSerie[i];
+    }
+    printf("Average number of entries per serie %d\n", sum / nbSeries);
+    free(nbElementsInBlockSerie);
+}
+
+void averageKeyLength(KV* database) {
+    unsigned int totalKeyLength = 0;
+    for (unsigned int i = 0; i < getNbSlotsInDKV(database); i++)
+        totalKeyLength += getKeyLengthFromKV(database, getKVOffsetDKVSlot(database, i));
+    printf("Average database key length is %d\n", totalKeyLength / getNbSlotsInDKV(database));
+}
+
+void averageValueLength(KV* database) {
+    unsigned int totalValueLength = 0;
+    for (unsigned int i = 0; i < getNbSlotsInDKV(database); i++)
+        totalValueLength += getValueLengthFromKV(database, getKVOffsetDKVSlot(database, i));
+    printf("Average database value length is %d\n", totalValueLength / getNbSlotsInDKV(database));
+}

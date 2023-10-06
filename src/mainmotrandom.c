@@ -124,6 +124,9 @@ int main(int argc, char* argv[]) {
     // printSlotsDKV(kv);
     // printFreeSlotsDKV(kv);
     // printTakenSlotsDKV(kv);
+    printElementsPerBlock(kv);
+    averageKeyLength(kv);
+    averageValueLength(kv);
 
     if (kv_close(kv) == -1)
         printf("Error while closing the database\n");

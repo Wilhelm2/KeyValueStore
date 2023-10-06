@@ -52,6 +52,15 @@ len_t getKeyLengthFromKV(KV* kv, len_t offsetKV) {
     return length;
 }
 
+len_t getValueLengthFromKV(KV* kv, len_t offsetKV) {
+    len_t length;
+    if (readAtPosition(kv->fds.fd_kv, offsetKV, &length, sizeof(len_t), kv) == -1)
+        return 0;
+    if (readAtPosition(kv->fds.fd_kv, offsetKV + length + sizeof(len_t), &length, sizeof(unsigned int), kv) == -1)
+        return 0;
+    return length;
+}
+
 int compareKeys(KV* kv, const kv_datum* key, len_t offsetKV) {
     len_t keyLength = 0;
     len_t totalReadBytes = 0;
