@@ -10,7 +10,7 @@ void verifyEntriesDKV(KV* database) {
             //                                                             abs(getDKVSlotSize(database, i - 1)))) == 0);
             if (!(getKVOffsetDKVSlot(database, i) -
                   (getKVOffsetDKVSlot(database, i - 1) + abs(getDKVSlotSize(database, i - 1)))) == 0) {
-                printf("error at entry %d\n", i);
+                printf("Error at entry %d\n", i);
                 printf("\noffsets %d %d lengths %d %d", getKVOffsetDKVSlot(database, i - 1),
                        getKVOffsetDKVSlot(database, i), getDKVSlotSize(database, i - 1), getDKVSlotSize(database, i));
                 printf("\n");
@@ -24,7 +24,7 @@ void verifyEntriesDKV(KV* database) {
         }
     }
     if (error)
-        printf("ERROR IN DKV\n");
+        printf("ERROR DETECTED IN DKV\n");
     else
         printf("NO ERROR DETECTED IN DKV\n");
 }

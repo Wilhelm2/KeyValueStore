@@ -13,8 +13,7 @@
 #include "testUtilities.h"
 int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau);
 void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau);
-void printDatabase(KV* kv);
-void freeEntryArray(kv_datum* array, unsigned int size);
+void freeArray(kv_datum* array, unsigned int size);
 bool checkDatabaseContains(KV* database, kv_datum* keys, unsigned int size);
 void printAllKeysWithSameHash(kv_datum* keys, unsigned int size, unsigned int hash, KV* kv);
 
@@ -27,28 +26,6 @@ void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau) {
         //        printf("inserts element %d\n", i);
         kv_put(kv, &tableau[i], &tableau[(i + 1) % n]);
     }
-}
-
-// Prints the database. Assumes the database is already open.
-void printDatabase(KV* kv) {
-    kv_datum key;
-    kv_datum val;
-    printf("------------------------------\n     CONTENU DE LA BASE :     \n------------------------------\n");
-    kv_start(kv);
-    key.ptr = NULL;
-    val.ptr = NULL;
-    while (kv_next(kv, &key, &val) == 1) {
-        printf("CLEF : longueur %u, valeur \n", key.len);
-        write(1, key.ptr, key.len);
-        printf("\nVal : longueur %u valeur \n", val.len);
-        write(1, val.ptr, val.len);
-        printf("\n");
-        free(key.ptr);
-        free(val.ptr);
-        key.ptr = NULL;
-        val.ptr = NULL;
-    }
-    printf("------------------------------\n       FIN DE LA BASE        \n------------------------------\n");
 }
 
 // Checks whether the database contains the keys of the array
@@ -72,18 +49,17 @@ void printAllKeysWithSameHash(kv_datum* keys, unsigned int size, unsigned int ha
     }
 }
 
-// Deletes all keys with a value between i and j
-// Returns -1 if one of the deletes failed
-int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau) {
+// Deletes all keys contained in the array between index i to j. Returns -1 if one of the delete fails.
+int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* array) {
     int test = 0;
     for (unsigned int k = i; k < j; k++) {
-        if (kv_del(kv, &tableau[k]) == -1)
+        if (kv_del(kv, &array[k]) == -1)
             test = -1;
     }
     return test;
 }
 
-void freeEntryArray(kv_datum* array, unsigned int size) {
+void freeArray(kv_datum* array, unsigned int size) {
     for (unsigned int i = 0; i < size; i++) {
         free(array[i].ptr);
     }
@@ -116,19 +92,21 @@ int main(int argc, char* argv[]) {
     // printf("Now deletes elements from database\n");
     deleleteKeysInterval(nbElementsToInsert / 2, nbElementsToInsert, kv, entryArray);
     verifyEntriesDKV(kv);
-    kv_datum* uniqueVector = extractUniqueEntriesArray(nbElementsToInsert, entryArray);
-    printf("all keys are contained in tab %d\n",
-           checkDatabaseContains(kv, uniqueVector, getNbUniqueArrayElements(entryArray, nbElementsToInsert)));
+    kv_datum* uniqueVector = extractArrayWithoutRepetition(nbElementsToInsert, entryArray);
+    printf(
+        "all keys are contained in tab %d\n",
+        checkDatabaseContains(kv, uniqueVector, getNbElementsArrayWithoutRepetition(nbElementsToInsert, entryArray)));
+
     //    affiche_base(kv);
-    printStatsOnDKV(kv);
+    // printStatsOnDKV(kv);
     // printSlotsDKV(kv);
     // printFreeSlotsDKV(kv);
     // printTakenSlotsDKV(kv);
-    printElementsPerBlock(kv);
-    averageKeyLength(kv);
-    averageValueLength(kv);
+    // printElementsPerBlock(kv);
+    // averageKeyLength(kv);
+    // averageValueLength(kv);
 
     if (kv_close(kv) == -1)
         printf("Error while closing the database\n");
-    freeEntryArray(entryArray, nbElementsToInsert);
+    freeArray(entryArray, nbElementsToInsert);
 }
