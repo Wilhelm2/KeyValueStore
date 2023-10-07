@@ -3,8 +3,8 @@ This project implements a key-value store using a hash table and linked lists.
 
 # File organization 
 
-A database *db* is composed of four files, which are: *db.h*, *db.blk*, *db.kv* and *db.dkv*. 
-Each of these files begins with a specific magic number, which allows to verify the correct type of file when opening it.
+A database *db* is composed of four files, namely: *db.h*, *db.blk*, *db.kv* and *db.dkv*. 
+Each of these files begins with a specific magic number, which allows to control the correctness of a file type when opening it.
 
 ## File *.h*
 
@@ -16,10 +16,10 @@ Its header is composed of the file's magic number and the index of the hash func
 |----------------|-------------------|
 
 To look up a key *K*, the database first computes the hash *H(K)* of *K*. 
-Then, it looks up the hash table entry *i* by reading *sizeof(unsigned int)* in the hash table file at the position: 
+Then, it looks up the hash table entry *i* by reading an int in the hash table file at the position: 
 > HEADER_H + i\* sizeof(unsigned int)
 
-The hash table entry *i* contains the index of the first block which stores the offsets of keys whose hash value is equal to *i*. 
+The hash table entry *i* contains the index of the first block that stores the offsets of keys whose hash value is equal to *i*. 
 
 The read function returns one of the following values:
 * Read returns -1 meaning that an error occurred. 
@@ -66,11 +66,11 @@ A key/value is composed of a length (unsigned int) and a content of length bytes
 |---------|-----|---------|-----|
 
 There is no easy way to look up directly entry *i* of kv, because keys and values can have different lengths. 
-Therefore, we use another file, the *.dkv* file to store that information. 
+Therefore, we use another file, the *.dkv* file, to store that information. 
 
 ## File *.dkv*
 
-The file with the extension *.dkv* contains for each entry *i* of the database the offset and length of *i*. 
+The file with the extension *.dkv* contains, for each entry *i* of the database, the offset and length of *i*. 
 Its magic number is *3*. 
 
 Its header is composed of the file's magic number and the number of the database's slots:
