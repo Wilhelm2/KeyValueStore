@@ -27,13 +27,6 @@ random: $(OBJS) | $(BIN_DIR)
 	ls $(OBJS)
 	gcc -o $(EXE) $(CFLAGS) $(FILES) $(OBJ_DIR)/mainmotrandom.o	
 
-zero:
-	gcc -o $(EXE) $(FILES) $(OBJ_DIR)/mainzero.o	
-
-int:
-	gcc -o $(EXE) $(FILES) $(OBJ_DIR)/mainint.o	
-
-
 clean:
 	rm *.o
 	rm main
