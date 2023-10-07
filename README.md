@@ -4,7 +4,7 @@ This project implements a key-value store using a hash table and linked lists.
 # File organization 
 
 A database *db* is composed of four files, namely: *db.h*, *db.blk*, *db.kv* and *db.dkv*. 
-Each of these files begins with a specific magic number, which allows to verify the correct type of file when opening it.
+Each of these files begins with a specific magic number, which allows to control the correctness of a file type when opening it.
 
 ## File *.h*
 
