@@ -15,7 +15,7 @@ unsigned int getNbElementsArrayWithoutRepetition(unsigned int size, kv_datum* ar
 // Returns whether elt is unique in array or not. Returns true also if elt is not contained in array.
 unsigned int isUnique(kv_datum elt, kv_datum* array, unsigned int size);
 // Gets the first occurrence of elt in array.
-unsigned int getFirstOccurrenceIndex(kv_datum elt, kv_datum* array, unsigned int size);
+unsigned int getIndexFirstOccurrence(kv_datum elt, kv_datum* array, unsigned int size);
 // Gets the number of unique elements in array.
 unsigned int getNbUniqueElements(kv_datum* array, unsigned int size);
 // Prints the database. Assumes the database already to be open.
@@ -24,4 +24,11 @@ void printDatabase(KV* kv);
 bool checkDatabaseContains(KV* database, kv_datum* keys, unsigned int size);
 // Prints all keys in keys whose hash value is equal to hash.
 void printAllKeysOfHash(kv_datum* keys, unsigned int size, unsigned int hash, KV* kv);
+// Adds the elements of array of size n into the database.
+void addToDatabase(unsigned int n, KV* database, kv_datum* array);
+// Deletes from the database the keys contained in array.
+int deleleteKeysInInterval(unsigned int i, unsigned int j, KV* database, kv_datum* array);
+// Frees the entries of array as well as array itself.
+void freeArray(kv_datum* array, unsigned int size);
+
 #endif

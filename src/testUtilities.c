@@ -23,7 +23,7 @@ kv_datum* extractArrayWithoutRepetition(unsigned int size, kv_datum* array) {
     kv_datum* uniqueVector = calloc(size, sizeof(kv_datum));
     unsigned int position = 0;
     for (unsigned int i = 0; i < size; i++) {
-        if (getFirstOccurrenceIndex(array[i], array, size) == i) {
+        if (getIndexFirstOccurrence(array[i], array, size) == i) {
             uniqueVector[position++] = array[i];
         }
     }
@@ -34,7 +34,7 @@ kv_datum* extractArrayWithoutRepetition(unsigned int size, kv_datum* array) {
 unsigned int getNbElementsArrayWithoutRepetition(unsigned int size, kv_datum* array) {
     unsigned int position = 0;
     for (unsigned int i = 0; i < size; i++) {
-        if (getFirstOccurrenceIndex(array[i], array, size) == i)
+        if (getIndexFirstOccurrence(array[i], array, size) == i)
             position++;
     }
     return position;
@@ -54,7 +54,7 @@ unsigned int isUnique(kv_datum elt, kv_datum* array, unsigned int size) {
     return true;
 }
 
-unsigned int getFirstOccurrenceIndex(kv_datum elt, kv_datum* array, unsigned int size) {
+unsigned int getIndexFirstOccurrence(kv_datum elt, kv_datum* array, unsigned int size) {
     for (unsigned int i = 0; i < size; i++) {
         if (array[i].len == elt.len) {
             if (memcmp(array[i].ptr, elt.ptr, elt.len) == 0)
@@ -111,4 +111,27 @@ void printAllKeysOfHash(kv_datum* keys, unsigned int size, unsigned int hash, KV
         if (hash == kv->hashFunction(&keys[j]))
             printf("Key %d length %d key %.*s\n", j, keys[j].len, keys[j].len, (char*)keys[j].ptr);
     }
+}
+
+void addToDatabase(unsigned int n, KV* database, kv_datum* array) {
+    for (unsigned int i = 0; i < n; i++) {
+        printf("\t\t Writes key %d length %d key %.*s\n", i, array[i].len, array[i].len, (char*)array[i].ptr);
+        kv_put(database, &array[i], &array[(i + 1) % n]);
+    }
+}
+
+int deleleteKeysInInterval(unsigned int i, unsigned int j, KV* database, kv_datum* array) {
+    int test = 0;
+    for (unsigned int k = i; k < j; k++) {
+        if (kv_del(database, &array[k]) == -1)
+            test = -1;
+    }
+    return test;
+}
+
+void freeArray(kv_datum* array, unsigned int size) {
+    for (unsigned int i = 0; i < size; i++) {
+        free(array[i].ptr);
+    }
+    free(array);
 }

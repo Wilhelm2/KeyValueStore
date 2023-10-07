@@ -11,37 +11,6 @@
 #include "kv.h"
 #include "kvStats.h"
 #include "testUtilities.h"
-int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* tableau);
-void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau);
-void freeArray(kv_datum* array, unsigned int size);
-
-// Inserts elements in table with key going from 0 to i-1 and values going from 1 to i
-void fillsDatabase(unsigned int n, KV* kv, kv_datum* tableau) {
-    for (unsigned int i = 0; i < n; i++) {
-        printf("\t\t writes key %d length %d key %.*s nbelements %d\n", i, tableau[i].len, tableau[i].len,
-               (char*)tableau[i].ptr, getNbSlotsInDKV(kv));
-
-        //        printf("inserts element %d\n", i);
-        kv_put(kv, &tableau[i], &tableau[(i + 1) % n]);
-    }
-}
-
-// Deletes all keys contained in the array between index i to j. Returns -1 if one of the delete fails.
-int deleleteKeysInterval(unsigned int i, unsigned int j, KV* kv, kv_datum* array) {
-    int test = 0;
-    for (unsigned int k = i; k < j; k++) {
-        if (kv_del(kv, &array[k]) == -1)
-            test = -1;
-    }
-    return test;
-}
-
-void freeArray(kv_datum* array, unsigned int size) {
-    for (unsigned int i = 0; i < size; i++) {
-        free(array[i].ptr);
-    }
-    free(array);
-}
 
 int main(int argc, char* argv[]) {
     if (argc < 6) {
@@ -63,16 +32,11 @@ int main(int argc, char* argv[]) {
 
     // Builds the array to fill the database
     kv_datum* entryArray = createRandomArray(nbElementsToInsert, maximumWordSize);
-    fillsDatabase(nbElementsToInsert, kv, entryArray);
+    addToDatabase(nbElementsToInsert, kv, entryArray);
     // printDatabase(kv);
 
-    // printf("Now deletes elements from database\n");
-    deleleteKeysInterval(nbElementsToInsert / 2, nbElementsToInsert, kv, entryArray);
+    deleleteKeysInInterval(nbElementsToInsert / 2, nbElementsToInsert, kv, entryArray);
     verifyEntriesDKV(kv);
-    kv_datum* uniqueVector = extractArrayWithoutRepetition(nbElementsToInsert, entryArray);
-    printf(
-        "all keys are contained in tab %d\n",
-        checkDatabaseContains(kv, uniqueVector, getNbElementsArrayWithoutRepetition(nbElementsToInsert, entryArray)));
 
     //    affiche_base(kv);
     // printStatsOnDKV(kv);
