@@ -66,11 +66,11 @@ A key/value is composed of a length (unsigned int) and a content of length bytes
 |---------|-----|---------|-----|
 
 There is no easy way to look up directly entry *i* of kv, because keys and values can have different lengths. 
-Therefore, we use another file, the *.dkv* file to store that information. 
+Therefore, we use another file, the *.dkv* file, to store that information. 
 
 ## File *.dkv*
 
-The file with the extension *.dkv* contains for each entry *i* of the database the offset and length of *i*. 
+The file with the extension *.dkv* contains, for each entry *i* of the database, the offset and length of *i*. 
 Its magic number is *3*. 
 
 Its header is composed of the file's magic number and the number of the database's slots:
