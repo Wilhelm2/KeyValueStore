@@ -83,9 +83,6 @@ void trySlotMerge(KV* database, unsigned int centralSlot) {
 }
 
 void mergeSlots(unsigned int left, unsigned int right, KV* database) {
-    printf("merge slots %d and %d total number of slots %d\n", left, right, getNbSlotsInDKV(database));
-    printf("offset %d and %d\n", getKVOffsetDKVSlot(database, left), getKVOffsetDKVSlot(database, right));
-    printf("length %d and %d\n", getDKVSlotSize(database, left), getDKVSlotSize(database, right));
     len_t newSlotSize = getDKVSlotSize(database, left) + getDKVSlotSize(database, right);
     len_t newSlotOffset = getKVOffsetDKVSlot(database, left);
     memcpy(database->dkvh.dkv + getOffsetDkv(left), database->dkvh.dkv + getOffsetDkv(right),

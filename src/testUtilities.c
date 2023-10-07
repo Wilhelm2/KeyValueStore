@@ -25,7 +25,6 @@ kv_datum* extractArrayWithoutRepetition(unsigned int size, kv_datum* array) {
     for (unsigned int i = 0; i < size; i++) {
         if (getFirstOccurrenceIndex(array[i], array, size) == i) {
             uniqueVector[position++] = array[i];
-            printf("array[%d] %.*s\n", i, array[i].len, (char*)array[i].ptr);
         }
     }
     uniqueVector = realloc(uniqueVector, position * sizeof(kv_datum));
@@ -93,4 +92,23 @@ void printDatabase(KV* kv) {
         val.ptr = NULL;
     }
     printf("------------------------------\nEND OF DATABASE\n------------------------------\n");
+}
+
+bool checkDatabaseContains(KV* database, kv_datum* keys, unsigned int size) {
+    kv_datum val;
+    for (unsigned int i = 0; i < size; i++) {
+        if (kv_get(database, &keys[i], &val) == 0) {
+            printf("Looks up key length %d key %.*s\n", keys[i].len, keys[i].len, (char*)keys[i].ptr);
+            printAllKeysOfHash(keys, size, database->hashFunction(&keys[i]), database);
+            return false;
+        }
+    }
+    return true;
+}
+
+void printAllKeysOfHash(kv_datum* keys, unsigned int size, unsigned int hash, KV* kv) {
+    for (unsigned int j = 0; j < size; j++) {
+        if (hash == kv->hashFunction(&keys[j]))
+            printf("Key %d length %d key %.*s\n", j, keys[j].len, keys[j].len, (char*)keys[j].ptr);
+    }
 }
