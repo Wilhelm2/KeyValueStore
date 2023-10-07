@@ -16,10 +16,10 @@ Its header is composed of the file's magic number and the index of the hash func
 |----------------|-------------------|
 
 To look up a key *K*, the database first computes the hash *H(K)* of *K*. 
-Then, it looks up the hash table entry *i* by reading *sizeof(unsigned int)* in the hash table file at the position: 
+Then, it looks up the hash table entry *i* by reading an int in the hash table file at the position: 
 > HEADER_H + i\* sizeof(unsigned int)
 
-The hash table entry *i* contains the index of the first block which stores the offsets of keys whose hash value is equal to *i*. 
+The hash table entry *i* contains the index of the first block that stores the offsets of keys whose hash value is equal to *i*. 
 
 The read function returns one of the following values:
 * Read returns -1 meaning that an error occurred. 
